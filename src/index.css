@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --font-sans: "Inter", "Noto Sans SC", "PingFang SC", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#fdfaf6] text-[#4a4a4a] font-sans;
+  }
+}
+
+.book-card {
+  @apply relative overflow-hidden transition-all duration-500 ease-in-out bg-white rounded-r-md;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1), 0 0 2px rgba(0, 0, 0, 0.05);
+  transform-origin: left;
+}
+
+.book-card:hover {
+  @apply -translate-y-2;
+  box-shadow: 15px 15px 25px -5px rgba(0, 0, 0, 0.2), 5px 5px 10px -5px rgba(0, 0, 0, 0.1);
+  transform: perspective(1000px) rotateY(-5deg);
+}
+
+.book-spine {
+  @apply absolute left-0 top-0 bottom-0 w-3 z-10;
+  background: linear-gradient(to right, rgba(0,0,0,0.2) 0%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.1) 100%);
+  border-right: 1px solid rgba(0,0,0,0.05);
+}
+
+.book-texture {
+  @apply absolute inset-0 opacity-[0.03] pointer-events-none;
+  background-image: url("https://www.transparenttextures.com/patterns/paper-fibers.png");
+}
+
+.reader-container {
+  @apply h-screen w-full flex flex-col bg-[#f4f1ea];
+}
+
+.epub-viewer {
+  @apply flex-1 overflow-hidden;
+}
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-[#d1d1d1] rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#b1b1b1];
+}
