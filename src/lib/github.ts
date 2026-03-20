@@ -22,6 +22,50 @@ export const saveGitHubConfig = (config: GitHubConfig) => {
   localStorage.setItem("gh-bookhub-owner", config.owner);
   localStorage.setItem("gh-bookhub-repo", config.repo);
 };
+export const verifyGitHubConfig = async (config: GitHubConfig): Promise<boolean> => {
+  // Use a fresh raw Octokit to bypass the global toast hooks during validation
+  const octokit = new Octokit({ auth: config.token });
+  
+  try {
+    // 1. Check if repo & book folder are readable
+    await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+      owner: config.owner,
+      repo: config.repo,
+      path: "book",
+    });
+
+    // 2. Check write permission via a dummy file creation and deletion
+    const testPath = `book/.bookhub-test-${Date.now()}`;
+    // simple base64 "test"
+    const encContent = btoa("test");
+
+    const createRes = await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+      owner: config.owner,
+      repo: config.repo,
+      path: testPath,
+      message: "bookhub permissions test",
+      content: encContent,
+    });
+
+    await octokit.request("DELETE /repos/{owner}/{repo}/contents/{path}", {
+      owner: config.owner,
+      repo: config.repo,
+      path: testPath,
+      message: "clean up test file",
+      sha: (createRes.data.content as any).sha,
+    });
+
+    return true;
+  } catch (error: any) {
+    if (error.status === 404) {
+      throw new Error("仓库名/用户名有误，或未能在根目录找到 book 文件夹");
+    } else if (error.status === 401 || error.status === 403) {
+      throw new Error("Token 权限验证失败，确保授予了 Contents 读写权限");
+    } else {
+      throw new Error(`连接失败: ${error.message}`);
+    }
+  }
+};
 
 export const getDeleteMode = (): boolean => {
   return localStorage.getItem("delete_mode") === "true";

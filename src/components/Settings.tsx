@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { GitHubConfig, getGitHubConfig, saveGitHubConfig, getDeleteMode, saveDeleteMode } from "../lib/github";
-import { Settings as SettingsIcon, Key, User, Github, Save, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import { GitHubConfig, saveGitHubConfig, getDeleteMode, saveDeleteMode, verifyGitHubConfig } from "../lib/github";
+import { toast } from "../lib/toast";
+import { Settings as SettingsIcon, Key, User, Github, Save, CheckCircle, AlertCircle, Trash2, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Settings() {
@@ -10,22 +11,30 @@ export default function Settings() {
     repo: "",
   });
   const [deleteMode, setDeleteMode] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
-    const existingConfig = getGitHubConfig();
-    if (existingConfig) {
-      setConfig(existingConfig);
-    }
+    setConfig({
+      token: localStorage.getItem("gh-bookhub-token") || "",
+      owner: localStorage.getItem("gh-bookhub-owner") || "",
+      repo: localStorage.getItem("gh-bookhub-repo") || "",
+    });
     setDeleteMode(getDeleteMode());
   }, []);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveGitHubConfig(config);
-    saveDeleteMode(deleteMode);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setVerifying(true);
+    try {
+      await verifyGitHubConfig(config);
+      saveGitHubConfig(config);
+      saveDeleteMode(deleteMode);
+      toast.success("配置校验通过并已保存");
+    } catch (err: any) {
+      toast.error(err.message || "由于未知原因未能通过校验");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (
@@ -123,23 +132,22 @@ export default function Settings() {
           <div className="pt-4">
             <button
               type="submit"
-              className="w-full py-3 bg-[#8b7e66] text-white rounded-xl hover:bg-[#7a6d55] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#8b7e66]/20"
+              disabled={verifying}
+              className="w-full py-3 bg-[#8b7e66] text-white rounded-xl hover:bg-[#7a6d55] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#8b7e66]/20"
             >
-              <Save className="w-5 h-5" />
-              保存配置
+              {verifying ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  正在校验配置...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  保存配置
+                </>
+              )}
             </button>
           </div>
-
-          {saved && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 p-4 bg-green-50 text-green-700 rounded-lg border border-green-100"
-            >
-              <CheckCircle className="w-5 h-5" />
-              <span>配置已保存到本地存储</span>
-            </motion.div>
-          )}
         </form>
 
         <div className="mt-12 p-6 bg-[#fdfaf6] rounded-2xl border border-[#8b7e66]/10">
