@@ -5,6 +5,7 @@ import BookShelf from "./components/BookShelf";
 import Reader from "./components/Reader";
 import Uploader from "./components/Uploader";
 import Settings from "./components/Settings";
+import Toast from "./components/Toast";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -75,6 +76,7 @@ function Header() {
 export default function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
+      <Toast />
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1 pb-24">

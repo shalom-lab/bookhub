@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import ePub, { Rendition } from "epubjs";
 import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 const THEMES = {
   default: {
@@ -193,41 +194,73 @@ export default function Reader() {
       {/* Main Content */}
       <div className="relative flex-1 flex overflow-hidden">
         {/* TOC Sidebar */}
-        {showToc && (
-          <div className="fixed md:relative inset-0 md:inset-auto w-full md:w-72 h-full bg-white border-r border-black/5 z-50 md:z-20 overflow-y-auto p-6 shadow-sm transition-all duration-300 shrink-0">
-            <div className="flex items-center justify-between mb-6 pb-2 border-b border-black/5">
-              <h3 className="font-serif text-lg text-[#4a4a4a]">目录</h3>
-              <button onClick={() => setShowToc(false)} className="p-2 hover:bg-black/5 rounded-full">
-                <X className="w-5 h-5 md:w-4 md:h-4" />
-              </button>
-            </div>
-            <ul className="space-y-1">
-              {toc.map((item) => (
-                <li key={item.id}>
-                  <button
-                    onClick={() => {
-                      renditionRef.current?.display(item.href);
-                      if (window.innerWidth < 768) setShowToc(false);
-                    }}
-                    className="text-left text-base md:text-sm text-[#4a4a4a]/80 hover:text-[#8b7e66] hover:bg-[#fdfaf6] transition-all w-full py-3 md:py-2 px-3 rounded-lg"
-                  >
-                    {item.label}
+        <AnimatePresence>
+          {showToc && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowToc(false)}
+                className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+              />
+              <motion.div 
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="fixed inset-x-0 bottom-0 top-16 md:top-auto md:relative md:inset-auto w-full md:w-72 h-[calc(100%-4rem)] md:h-full bg-white border-t md:border-r border-black/5 z-50 md:z-20 overflow-y-auto p-6 shadow-2xl md:shadow-sm md:!translate-y-0 rounded-t-3xl md:rounded-none flex flex-col shrink-0"
+              >
+                <div className="flex items-center justify-between mb-6 pb-2 border-b border-black/5 shrink-0">
+                  <h3 className="font-serif text-lg text-[#4a4a4a]">目录</h3>
+                  <button onClick={() => setShowToc(false)} className="p-2 hover:bg-black/5 rounded-full">
+                    <X className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                </div>
+                <ul className="space-y-1 flex-1 overflow-y-auto">
+                  {toc.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => {
+                          renditionRef.current?.display(item.href);
+                          if (window.innerWidth < 768) setShowToc(false);
+                        }}
+                        className="text-left text-base md:text-sm text-[#4a4a4a]/80 hover:text-[#8b7e66] hover:bg-[#fdfaf6] transition-all w-full py-3 md:py-2 px-3 rounded-lg"
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Settings Panel */}
-        {showSettings && (
-          <div className="fixed md:absolute inset-x-0 bottom-0 md:inset-auto md:right-4 md:top-4 w-full md:w-72 bg-white border-t md:border border-black/5 z-50 md:z-40 rounded-t-3xl md:rounded-2xl shadow-2xl p-6 space-y-8">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif text-lg text-[#4a4a4a]">阅读设置</h3>
-              <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-black/5 rounded-full">
-                <X className="w-5 h-5 md:w-4 md:h-4" />
-              </button>
-            </div>
+        <AnimatePresence>
+          {showSettings && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowSettings(false)}
+                className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+              />
+              <motion.div 
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="fixed inset-x-0 bottom-0 md:absolute md:inset-auto md:right-4 md:top-4 w-full md:w-72 bg-white border-t md:border border-black/5 z-50 md:z-40 rounded-t-3xl md:rounded-2xl shadow-2xl p-6 space-y-8 md:!translate-y-0"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-serif text-lg text-[#4a4a4a]">阅读设置</h3>
+                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-black/5 rounded-full">
+                    <X className="w-5 h-5 md:w-4 md:h-4" />
+                  </button>
+                </div>
 
             {/* Font Size */}
             <div className="space-y-3">
@@ -302,8 +335,10 @@ export default function Reader() {
                 </button>
               </div>
             </div>
-          </div>
+            </motion.div>
+          </>
         )}
+        </AnimatePresence>
 
         {/* Viewer */}
         <div 
@@ -345,9 +380,21 @@ export default function Reader() {
               ref={viewerRef} 
               className={`epub-viewer w-full h-full mx-auto px-4 md:px-16 ${flow === "scrolled" ? 'overflow-y-auto' : ''}`} 
             />
+
+            {/* Mobile Touch Zones */}
+            {flow === "paginated" && (
+              <div className="absolute inset-0 flex md:hidden z-10">
+                <div className="w-[30%] h-full" onClick={prev} />
+                <div className="w-[40%] h-full" onClick={() => {
+                  /* maybe toggle header/footer? */
+                }} />
+                <div className="w-[30%] h-full" onClick={next} />
+              </div>
+            )}
           </div>
         </div>
       </div>
+
 
       {/* Mobile Controls */}
       <div className="md:hidden h-16 bg-white/80 backdrop-blur-md border-t border-black/5 flex items-center justify-around">

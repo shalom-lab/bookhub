@@ -151,7 +151,7 @@ export default function BookShelf() {
                               </span>
                             </div>
                             
-                            <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
+                            <div className="absolute bottom-4 right-4 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-500 md:translate-y-2 md:group-hover:translate-y-0">
                               <span className="text-[10px] tracking-[0.2em] font-serif bg-white/90 backdrop-blur-md text-[#4a4a4a] px-4 py-1.5 rounded-full shadow-sm border border-black/5 font-bold">
                                 开始阅读
                               </span>
@@ -166,7 +166,7 @@ export default function BookShelf() {
                               e.stopPropagation();
                               setConfirmDelete(book);
                             }}
-                            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-[#8b7e66]/5 text-[#8b7e66]/40 rounded-full border border-[#8b7e66]/10 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 z-20"
+                            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-[#8b7e66]/5 text-[#8b7e66]/40 rounded-full border border-[#8b7e66]/10 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 z-20"
                             title="删除书籍"
                           >
                             <Trash2 className="w-3.5 h-3.5 stroke-[1.2]" />

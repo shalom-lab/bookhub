@@ -23,8 +23,29 @@ export const saveDeleteMode = (enabled: boolean) => {
   localStorage.setItem("delete_mode", enabled ? "true" : "false");
 };
 
+import { toast } from "./toast";
+
 export const getOctokit = (token: string) => {
-  return new Octokit({ auth: token });
+  const octokit = new Octokit({ auth: token });
+  
+  octokit.hook.error("request", async (error, options) => {
+    // We only show toast generically for certain global errors like 401 or 403.
+    // We don't want to show generic errors for 404 because sometimes we expect 404s (e.g. checking if a file exists before uploading).
+    if (error.status === 401) {
+      toast.error("GitHub Token已失效或无权限，请检查设置中的配置");
+    } else if (error.status === 403) {
+      toast.error("请求过于频繁，触发 GitHub API 速率限制，请稍后再试");
+    } else if (error.status !== 404) {
+      if (options.method === 'GET' || options.method === 'PUT' || options.method === 'DELETE') {
+        const path = (options as any).url || "";
+        // Simple heuristic to not spam user errors if we are just fetching the book list
+        toast.error(`网络请求失败: ${error.message}`);
+      }
+    }
+    throw error;
+  });
+
+  return octokit;
 };
 
 export interface BookFile {
