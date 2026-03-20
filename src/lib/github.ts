@@ -10,7 +10,7 @@ export const getGitHubConfig = (): GitHubConfig | null => {
   const token = localStorage.getItem("gh-bookhub-token");
   const owner = localStorage.getItem("gh-bookhub-owner");
   const repo = localStorage.getItem("gh-bookhub-repo");
-  
+
   if (token && owner && repo) {
     return { token, owner, repo };
   }
@@ -22,48 +22,44 @@ export const saveGitHubConfig = (config: GitHubConfig) => {
   localStorage.setItem("gh-bookhub-owner", config.owner);
   localStorage.setItem("gh-bookhub-repo", config.repo);
 };
-export const verifyGitHubConfig = async (config: GitHubConfig): Promise<boolean> => {
-  // Use a fresh raw Octokit to bypass the global toast hooks during validation
+export const verifyGitHubConfig = async (config: GitHubConfig) => {
   const octokit = new Octokit({ auth: config.token });
-  
+
   try {
-    // 1. Check if repo & book folder are readable
+    const { data } = await octokit.request("GET /repos/{owner}/{repo}", {
+      owner: config.owner,
+      repo: config.repo,
+    });
+
+    if (!data.permissions) {
+      throw new Error("无法获取权限信息，请确保 Token 拥有此仓库的访问权限");
+    }
+
+    const canRead = Boolean(data.permissions.pull);
+    const canWrite = Boolean(data.permissions.push || data.permissions.admin);
+
+    if (!canRead || !canWrite) {
+      throw new Error(`权限不足，需要读写权限。当前: 读(${canRead}), 写(${canWrite})`);
+    }
+
+    // Check if 'book' directory exists
     await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
       owner: config.owner,
       repo: config.repo,
       path: "book",
     });
 
-    // 2. Check write permission via a dummy file creation and deletion
-    const testPath = `book/.bookhub-test-${Date.now()}`;
-    // simple base64 "test"
-    const encContent = btoa("test");
-
-    const createRes = await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
-      owner: config.owner,
-      repo: config.repo,
-      path: testPath,
-      message: "bookhub permissions test",
-      content: encContent,
-    });
-
-    await octokit.request("DELETE /repos/{owner}/{repo}/contents/{path}", {
-      owner: config.owner,
-      repo: config.repo,
-      path: testPath,
-      message: "clean up test file",
-      sha: (createRes.data.content as any).sha,
-    });
-
     return true;
-  } catch (error: any) {
-    if (error.status === 404) {
-      throw new Error("仓库名/用户名有误，或未能在根目录找到 book 文件夹");
-    } else if (error.status === 401 || error.status === 403) {
-      throw new Error("Token 权限验证失败，确保授予了 Contents 读写权限");
-    } else {
-      throw new Error(`连接失败: ${error.message}`);
+  } catch (err: any) {
+    if (err.status === 404) {
+      if (err.response?.url?.includes('/contents/book')) {
+        throw new Error("仓库中不存在 'book' 文件夹，请按快速开始指南事先创建它");
+      }
+      throw new Error("仓库不存在或未授权访问（404）");
     }
+    if (err.status === 401) throw new Error("Token 无效或已过期（401）");
+    if (err.status === 403) throw new Error("Token 权限不足或触发速率限制（403）");
+    throw new Error(`验证失败: ${err.message || "未知错误"}`);
   }
 };
 
@@ -79,7 +75,7 @@ import { toast } from "./toast";
 
 export const getOctokit = (token: string) => {
   const octokit = new Octokit({ auth: token });
-  
+
   octokit.hook.error("request", async (error, options) => {
     // We only show toast generically for certain global errors like 401 or 403.
     // We don't want to show generic errors for 404 because sometimes we expect 404s (e.g. checking if a file exists before uploading).

@@ -116,14 +116,12 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setDeleteMode(!deleteMode)}
-                className={`w-12 h-6 rounded-full transition-colors relative ${
-                  deleteMode ? "bg-[#8b7e66]" : "bg-gray-200"
-                }`}
+                className={`w-12 h-6 rounded-full transition-colors relative ${deleteMode ? "bg-[#8b7e66]" : "bg-gray-200"
+                  }`}
               >
                 <div
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
-                    deleteMode ? "left-7" : "left-1"
-                  }`}
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${deleteMode ? "left-7" : "left-1"
+                    }`}
                 />
               </button>
             </div>
