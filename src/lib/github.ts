@@ -7,12 +7,20 @@ export interface GitHubConfig {
 }
 
 export const getGitHubConfig = (): GitHubConfig | null => {
-  const config = localStorage.getItem("gh_config");
-  return config ? JSON.parse(config) : null;
+  const token = localStorage.getItem("gh-bookhub-token");
+  const owner = localStorage.getItem("gh-bookhub-owner");
+  const repo = localStorage.getItem("gh-bookhub-repo");
+  
+  if (token && owner && repo) {
+    return { token, owner, repo };
+  }
+  return null;
 };
 
 export const saveGitHubConfig = (config: GitHubConfig) => {
-  localStorage.setItem("gh_config", JSON.stringify(config));
+  localStorage.setItem("gh-bookhub-token", config.token);
+  localStorage.setItem("gh-bookhub-owner", config.owner);
+  localStorage.setItem("gh-bookhub-repo", config.repo);
 };
 
 export const getDeleteMode = (): boolean => {

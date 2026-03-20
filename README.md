@@ -34,6 +34,15 @@
    - 进入 **“上传”** 页面，选择 `.epub` 格式文件并输入标题和分类进行上传。
    - 前往首页的 **“我的书架”** 点击书籍即可开始阅读。
 
+## 🔐 存储配置 (LocalStorage)
+本应用的所有配置均为**纯客户端存储**，数据仅保存在您的浏览器本地，极大保证了隐私安全。如果您需要通过编程方式（如脚本注入或自动装配）写入配置，可以使用以下特定的 `localStorage` 键名：
+- `gh-bookhub-token` (String): 存放您的 GitHub Token
+- `gh-bookhub-owner` (String): 存放您的 GitHub 用户名
+- `gh-bookhub-repo` (String): 存放您用于存储书籍的仓库名
+- `delete_mode` (Boolean): 存放“删除模式”状态。
+- `read_pos_${url}` (String): 存放对应书籍的阅读进度 (基于 `cfi` 定位)。
+- 其他阅读设置 (`reader_theme`, `reader_font_size`, `reader_flow`): 存放您偏好的阅读皮肤、字号以及翻页模式。
+
 ## 🛠️ 技术栈
 
 - **构建与框架：** React 19 + Vite 6
