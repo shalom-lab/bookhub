@@ -39,7 +39,7 @@ export default function BookShelf() {
 
   const handleDelete = async () => {
     if (!confirmDelete || !config) return;
-    
+
     try {
       setLoading(true);
       await deleteBook(config, confirmDelete.path, confirmDelete.sha);
@@ -55,7 +55,7 @@ export default function BookShelf() {
 
   const handleBatchDelete = async () => {
     if (!config || selectedBooks.length === 0) return;
-    
+
     setIsBatchDeleting(true);
     try {
       for (const path of selectedBooks) {
@@ -76,19 +76,19 @@ export default function BookShelf() {
 
   const handleEditSave = async () => {
     if (!editingBook || !config) return;
-    
+
     try {
       setLoading(true);
       // Renaming in GitHub: Get file content, create new file, delete old file
       const response = await fetch(editingBook.download_url);
       const blob = await response.blob();
       const file = new File([blob], editingBook.path.split('/').pop()!);
-      
+
       // Upload with new metadata
       await uploadBook(config, file, editForm.title, editForm.category);
       // Delete old one
       await deleteBook(config, editingBook.path, editingBook.sha);
-      
+
       loadBooks();
       setEditingBook(null);
     } catch (error) {
@@ -145,7 +145,7 @@ export default function BookShelf() {
           </span>
         </h1>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <button 
+          <button
             onClick={() => {
               setIsSelectMode(!isSelectMode);
               setSelectedBooks([]);
@@ -187,7 +187,7 @@ export default function BookShelf() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 md:gap-10">
                 {categoryBooks.map((book, index) => {
                   const colors = [
-                    "bg-[#e8e4d9]", "bg-[#d9e2e8]", "bg-[#e8d9d9]", 
+                    "bg-[#e8e4d9]", "bg-[#d9e2e8]", "bg-[#e8d9d9]",
                     "bg-[#d9e8df]", "bg-[#e2d9e8]", "bg-[#e8e2d9]"
                   ];
                   const colorIndex = book.title.length % colors.length;
@@ -200,103 +200,103 @@ export default function BookShelf() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                        <div className="group relative">
-                          {isSelectMode ? (
-                            <button
-                              onClick={() => toggleSelect(book.path)}
-                              className="block w-full text-left"
-                            >
-                              <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20 ${selectedBooks.includes(book.path) ? 'ring-4 ring-[var(--primary-color)] scale-95' : ''}`}>
-                                <div className="absolute top-2 right-2 z-40 bg-white rounded-full p-1 shadow-md">
-                                  {selectedBooks.includes(book.path) ? <CheckSquare className="w-4 h-4 text-[var(--primary-color)]" /> : <Square className="w-4 h-4 text-gray-300" />}
-                                </div>
-                                <div className="book-spine" />
-                                <div className="book-texture" />
-                                <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                  <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
-                                    {book.title}
-                                  </h3>
-                                </div>
+                      <div className="group relative">
+                        {isSelectMode ? (
+                          <button
+                            onClick={() => toggleSelect(book.path)}
+                            className="block w-full text-left"
+                          >
+                            <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20 ${selectedBooks.includes(book.path) ? 'ring-4 ring-[var(--primary-color)] scale-95' : ''}`}>
+                              <div className="absolute top-2 right-2 z-40 bg-white rounded-full p-1 shadow-md">
+                                {selectedBooks.includes(book.path) ? <CheckSquare className="w-4 h-4 text-[var(--primary-color)]" /> : <Square className="w-4 h-4 text-gray-300" />}
                               </div>
-                            </button>
-                          ) : (
-                            <Link
-                              to={`/reader?url=${encodeURIComponent(book.download_url)}&title=${encodeURIComponent(book.title)}`}
-                              className="block"
-                            >
-                              <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20`}>
-                                <div className="book-spine" />
-                                <div className="book-texture" />
-                                
-                                {book.cover_url ? (
-                                  <div className="absolute inset-0 z-0">
-                                    <img 
-                                      src={book.cover_url} 
-                                      alt={book.title} 
-                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
-                                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="w-full h-px bg-black/5 mt-4 z-10" />
-                                    <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                      <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
-                                        {book.title}
-                                      </h3>
-                                    </div>
-                                    <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
-                                      <div className="w-8 h-px bg-black/20" />
-                                      <span className="text-[10px] uppercase tracking-widest text-[var(--primary-color)] font-medium">
-                                        {book.category}
-                                      </span>
-                                    </div>
-                                  </>
-                                )}
-                                
-                                {cachedUrls.includes(book.download_url) && (
-                                  <div className="absolute top-3 left-3 z-30 bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/20" title="已离线缓存">
-                                    <WifiOff className="w-3 h-3 text-white" />
-                                  </div>
-                                )}
-
-                                <div className="absolute bottom-4 right-4 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-500 md:translate-y-2 md:group-hover:translate-y-0 z-20">
-                                  <span className="text-[10px] tracking-[0.2em] font-serif bg-[var(--card-bg)]/90 backdrop-blur-md text-[var(--text-color)] px-4 py-1.5 rounded-full shadow-sm border border-black/5 font-bold">
-                                    开始阅读
-                                  </span>
-                                </div>
+                              <div className="book-spine" />
+                              <div className="book-texture" />
+                              <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
+                                <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
+                                  {book.title}
+                                </h3>
                               </div>
-                            </Link>
-                          )}
-
-                          {!isSelectMode && (
-                            <div className="absolute top-3 right-3 flex flex-col gap-2 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-300 z-20">
-                              <button
-                                onClick={() => {
-                                  setEditingBook(book);
-                                  setEditForm({ title: book.title, category: book.category });
-                                }}
-                                className="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md text-[var(--primary-color)] rounded-full border border-[var(--primary-color)]/10 hover:bg-white transition-all shadow-sm"
-                                title="编辑信息"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              {deleteMode && (
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setConfirmDelete(book);
-                                  }}
-                                  className="w-8 h-8 flex items-center justify-center bg-red-50/80 backdrop-blur-md text-red-500 rounded-full border border-red-100 hover:bg-red-50 transition-all shadow-sm"
-                                  title="删除书籍"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
                             </div>
-                          )}
-                        </div>
+                          </button>
+                        ) : (
+                          <Link
+                            to={`/reader?url=${encodeURIComponent(book.download_url)}&title=${encodeURIComponent(book.title)}`}
+                            className="block"
+                          >
+                            <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20`}>
+                              <div className="book-spine" />
+                              <div className="book-texture" />
+
+                              {book.cover_url ? (
+                                <div className="absolute inset-0 z-0">
+                                  <img
+                                    src={book.cover_url}
+                                    alt={book.title}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                  />
+                                  <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="w-full h-px bg-black/5 mt-4 z-10" />
+                                  <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
+                                    <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
+                                      {book.title}
+                                    </h3>
+                                  </div>
+                                  <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
+                                    <div className="w-8 h-px bg-black/20" />
+                                    <span className="text-[10px] uppercase tracking-widest text-[var(--primary-color)] font-medium">
+                                      {book.category}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+
+                              {cachedUrls.includes(book.download_url) && (
+                                <div className="absolute top-3 left-3 z-30 bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/20" title="已离线缓存">
+                                  <WifiOff className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+
+                              <div className="absolute bottom-4 right-4 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-500 md:translate-y-2 md:group-hover:translate-y-0 z-20">
+                                <span className="text-[10px] tracking-[0.2em] font-serif bg-[var(--card-bg)]/90 backdrop-blur-md text-[var(--text-color)] px-4 py-1.5 rounded-full shadow-sm border border-black/5 font-bold">
+                                  开始阅读
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        )}
+
+                        {!isSelectMode && (
+                          <div className="absolute top-3 right-3 flex flex-col gap-2 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-300 z-20">
+                            <button
+                              onClick={() => {
+                                setEditingBook(book);
+                                setEditForm({ title: book.title, category: book.category });
+                              }}
+                              className="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md text-[var(--primary-color)] rounded-full border border-[var(--primary-color)]/10 hover:bg-white transition-all shadow-sm"
+                              title="编辑信息"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            {deleteMode && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setConfirmDelete(book);
+                                }}
+                                className="w-8 h-8 flex items-center justify-center bg-red-50/80 backdrop-blur-md text-red-500 rounded-full border border-red-100 hover:bg-red-50 transition-all shadow-sm"
+                                title="删除书籍"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })}
