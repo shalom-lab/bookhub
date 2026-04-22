@@ -53,7 +53,24 @@ export default function Reader() {
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfTotalPages, setPdfTotalPages] = useState(0);
   const [pdfScale, setPdfScale] = useState(1.0);
-  const [pdfFit, setPdfFit] = useState<"width" | "page">("width");
+  const [theme, setTheme] = useState<keyof typeof THEMES>(() => 
+    (localStorage.getItem("reader_theme") as keyof typeof THEMES) || "default"
+  );
+  const [flow, setFlow] = useState<"paginated" | "scrolled">(() => 
+    (localStorage.getItem("reader_flow") as "paginated" | "scrolled") || "paginated"
+  );
+  const [pdfFit, setPdfFit] = useState<"width" | "page">(() => 
+    (localStorage.getItem("reader_pdf_fit") as "width" | "page") || "width"
+  );
+  const [spread, setSpread] = useState<"auto" | "none">(() => 
+    (localStorage.getItem("reader_spread") as "auto" | "none") || "auto"
+  );
+  const [pdfSpread, setPdfSpread] = useState<boolean>(() => 
+    localStorage.getItem("reader_pdf_spread") === "true"
+  );
+  
+  const [isRendering, setIsRendering] = useState(false);
+  const [epubPercentage, setEpubPercentage] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRefRight = useRef<HTMLCanvasElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
@@ -61,34 +78,12 @@ export default function Reader() {
   // Immersive Mode
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [spread, setSpread] = useState<"auto" | "none">("auto");
-  const [pdfSpread, setPdfSpread] = useState<boolean>(false);
   
   // Reader Settings
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem("reader_font_size");
     return saved ? parseInt(saved, 10) : 100;
   });
-  const [theme, setTheme] = useState<keyof typeof THEMES>(() => {
-    const saved = localStorage.getItem("reader_theme");
-    return (saved && THEMES[saved as keyof typeof THEMES]) ? (saved as keyof typeof THEMES) : "default";
-  });
-  const [flow, setFlow] = useState<"paginated" | "scrolled">(() => {
-    const saved = localStorage.getItem("reader_flow");
-    return (saved === "paginated" || saved === "scrolled") ? saved : "paginated";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("reader_font_size", fontSize.toString());
-  }, [fontSize]);
-
-  useEffect(() => {
-    localStorage.setItem("reader_theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem("reader_flow", flow);
-  }, [flow]);
 
   const isPdf = bookUrl?.split('?')[0].toLowerCase().endsWith(".pdf");
 
@@ -157,8 +152,10 @@ export default function Reader() {
         });
 
         rendition.on("relocated", (location: any) => {
-          setLocation(location.start.cfi);
           localStorage.setItem(`read_pos_${bookUrl}`, location.start.cfi);
+          if (location.start.percentage) {
+            setEpubPercentage(location.start.percentage * 100);
+          }
         });
 
         // Keyboard navigation
@@ -285,9 +282,13 @@ export default function Reader() {
       if (renderTaskRef.current) renderTaskRef.current.cancel();
       if (renderTaskRefRight.current) renderTaskRefRight.current.cancel();
 
+      setIsRendering(true);
       try {
         const container = pdfContainerRef.current;
         if (!container) return;
+
+        // Reset scroll position
+        container.scrollTo(0, 0);
 
         const isDouble = pdfSpread && windowWidth > 1024 && pdfTotalPages > 1;
         const page = await pdf.getPage(pdfPage);
@@ -334,6 +335,8 @@ export default function Reader() {
       } catch (err: any) {
         if (err.name === "RenderingCancelledException") return;
         console.error("PDF Render Error:", err);
+      } finally {
+        setIsRendering(false);
       }
     };
 
@@ -382,28 +385,20 @@ export default function Reader() {
 
   const toggleControls = () => setShowControls(!showControls);
 
-  // PDF Navigation
-  const pdfNext = () => {
-    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
-    setPdfPage((prev) => Math.min(prev + step, pdfTotalPages));
-  };
-  const pdfPrev = () => {
-    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
-    setPdfPage((prev) => Math.max(prev - step, 1));
-  };
-
-  // Update settings without full re-render
+  // Update settings and persist
   useEffect(() => {
-    if (renditionRef.current) {
+    localStorage.setItem("reader_theme", theme);
+    localStorage.setItem("reader_flow", flow);
+    localStorage.setItem("reader_pdf_fit", pdfFit);
+    localStorage.setItem("reader_spread", spread);
+    localStorage.setItem("reader_pdf_spread", pdfSpread.toString());
+    localStorage.setItem("reader_font_size", fontSize.toString());
+
+    if (!isPdf && renditionRef.current) {
       renditionRef.current.themes.fontSize(`${fontSize}%`);
-    }
-  }, [fontSize]);
-
-  useEffect(() => {
-    if (renditionRef.current) {
       renditionRef.current.themes.select(theme);
     }
-  }, [theme]);
+  }, [fontSize, theme, flow, pdfFit, spread, pdfSpread, isPdf]);
 
   const next = () => isPdf ? pdfNext() : renditionRef.current?.next();
   const prev = () => isPdf ? pdfPrev() : renditionRef.current?.prev();
@@ -480,12 +475,11 @@ export default function Reader() {
         )}
       </AnimatePresence>
 
-      {/* Progress Bar (Visual) */}
       <div className="fixed top-0 left-0 right-0 h-0.5 z-50">
         <div 
           className="h-full bg-[#8b7e66] transition-all duration-300"
           style={{ 
-            width: isPdf ? `${(pdfPage / pdfTotalPages) * 100}%` : '0%', // EPUB percentage would need location calculation
+            width: isPdf ? `${(pdfPage / pdfTotalPages) * 100}%` : `${epubPercentage}%`,
             opacity: showControls ? 1 : 0.3
           }}
         />
@@ -836,9 +830,14 @@ export default function Reader() {
             {isPdf ? (
               <div 
                 ref={pdfContainerRef}
-                className="w-full h-full flex flex-col items-center overflow-y-auto pt-20 pb-20 scrollbar-hide"
+                className="w-full h-full flex flex-col items-center overflow-y-auto pt-20 pb-20 scrollbar-hide relative"
               >
-                <div className={`flex items-start justify-center gap-4 ${pdfSpread && windowWidth > 1024 ? 'w-full px-10' : ''}`}>
+                {isRendering && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-transparent z-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#8b7e66] opacity-40" />
+                  </div>
+                )}
+                <div className={`flex items-start justify-center gap-4 transition-opacity duration-300 ${isRendering ? 'opacity-50' : 'opacity-100'} ${pdfSpread && windowWidth > 1024 ? 'w-full px-10' : ''}`}>
                   <canvas 
                     ref={canvasRef} 
                     className="shadow-2xl bg-white max-w-full" 
