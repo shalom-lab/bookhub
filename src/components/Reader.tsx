@@ -188,7 +188,7 @@ export default function Reader() {
       </div>
 
       {/* Main Reader Area */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative flex flex-col overflow-hidden">
         {loading && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin mb-4" style={{ color: currentTheme.fg }} />
@@ -203,7 +203,7 @@ export default function Reader() {
         
         {!loading && !error && bookUrl && (
           bookUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
-            <div className="absolute inset-0 z-20">
+            <div className="flex-1 min-h-0">
               <PdfViewer bookUrl={bookUrl} theme={theme} />
             </div>
           ) : (
