@@ -84,7 +84,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
+    <div className="w-full h-[500px] flex flex-col overflow-hidden border-4 border-red-500">
       <PDFViewer
         config={{
           src: objectUrl,
