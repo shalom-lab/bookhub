@@ -38,7 +38,7 @@ export default function Reader() {
     parseInt(localStorage.getItem("reader_font_size") || "110", 10)
   );
 
-  const renditionRef = useRef<any>(null);
+  const [rendition, setRendition] = useState<any>(null);
 
   // Load Book Data
   useEffect(() => {
@@ -80,11 +80,29 @@ export default function Reader() {
     localStorage.setItem("reader_theme", theme);
     localStorage.setItem("reader_font_size", fontSize.toString());
     
-    if (renditionRef.current) {
-      renditionRef.current.themes.select(theme);
-      renditionRef.current.themes.fontSize(`${fontSize}%`);
+    if (rendition) {
+      // Re-register themes on change to force epubjs to recognize and apply the new CSS rules dynamically
+      Object.entries(THEMES).forEach(([key, value]) => {
+        rendition.themes.register(key, {
+          body: {
+            background: `${value.bg} !important`,
+            color: `${value.fg} !important`,
+            "font-family": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif !important",
+            "line-height": "1.8 !important",
+          },
+          "h1, h2, h3, h4, h5, h6": {
+            color: `${value.fg} !important`,
+            "font-family": "'Noto Serif SC', 'Source Han Serif SC', serif !important",
+          },
+          "::selection": {
+            background: `${value.selection} !important`,
+          }
+        });
+      });
+      rendition.themes.select(theme);
+      rendition.themes.fontSize(`${fontSize}%`);
     }
-  }, [theme, fontSize]);
+  }, [rendition, theme, fontSize]);
 
   const locationChanged = (epubcifi: string | number) => {
     setLocation(epubcifi);
@@ -201,28 +219,8 @@ export default function Reader() {
                     flow: "paginated",
                     manager: "default",
                   }}
-                  getRendition={(rendition) => {
-                    renditionRef.current = rendition;
-                    // Register beautiful themes
-                    Object.entries(THEMES).forEach(([key, value]) => {
-                      rendition.themes.register(key, {
-                        body: {
-                          background: `${value.bg} !important`,
-                          color: `${value.fg} !important`,
-                          "font-family": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif !important",
-                          "line-height": "1.8 !important",
-                        },
-                        "h1, h2, h3, h4, h5, h6": {
-                          color: `${value.fg} !important`,
-                          "font-family": "'Noto Serif SC', 'Source Han Serif SC', serif !important",
-                        },
-                        "::selection": {
-                          background: `${value.selection} !important`,
-                        }
-                      });
-                    });
-                    rendition.themes.select(theme);
-                    rendition.themes.fontSize(`${fontSize}%`);
+                  getRendition={(rend) => {
+                    setRendition(rend);
                   }}
                 />
               </div>
