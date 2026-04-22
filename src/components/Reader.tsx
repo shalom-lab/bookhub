@@ -53,8 +53,16 @@ export default function Reader() {
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfTotalPages, setPdfTotalPages] = useState(0);
   const [pdfScale, setPdfScale] = useState(1.0);
+  const [pdfFit, setPdfFit] = useState<"width" | "page">("width");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRefRight = useRef<HTMLCanvasElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Immersive Mode
+  const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [spread, setSpread] = useState<"auto" | "none">("auto");
+  const [pdfSpread, setPdfSpread] = useState<boolean>(false);
   
   // Reader Settings
   const [fontSize, setFontSize] = useState(() => {
@@ -113,6 +121,7 @@ export default function Reader() {
           height: "100%",
           flow: flow,
           manager: flow === "scrolled" ? "continuous" : "default",
+          spread: spread,
         });
 
         renditionRef.current = rendition;
@@ -205,6 +214,23 @@ export default function Reader() {
         setPdf(pdfDoc);
         setPdfTotalPages(pdfDoc.numPages);
         setError(null);
+
+        // Load PDF TOC (Outline)
+        try {
+          const outline = await pdfDoc.getOutline();
+          if (outline) {
+            const formattedToc = outline.map((item: any) => ({
+              id: item.dest,
+              label: item.title,
+              href: item.dest, // dest could be a string or array
+              isPdf: true,
+              dest: item.dest
+            }));
+            setToc(formattedToc);
+          }
+        } catch (e) {
+          console.warn("Could not load PDF outline");
+        }
         
         const savedPage = localStorage.getItem(`read_pos_${bookUrl}`);
         if (savedPage) {
@@ -238,50 +264,71 @@ export default function Reader() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Render PDF page
   const renderTaskRef = useRef<any>(null);
+  const renderTaskRefRight = useRef<any>(null);
+
   useEffect(() => {
     if (!pdf || !canvasRef.current) return;
 
     const renderPage = async () => {
-      // Cancel previous render task if exists
-      if (renderTaskRef.current) {
-        renderTaskRef.current.cancel();
-      }
+      if (renderTaskRef.current) renderTaskRef.current.cancel();
+      if (renderTaskRefRight.current) renderTaskRefRight.current.cancel();
 
       try {
+        const container = pdfContainerRef.current;
+        if (!container) return;
+
+        const isDouble = pdfSpread && windowWidth > 1024 && pdfTotalPages > 1;
         const page = await pdf.getPage(pdfPage);
-        const viewport = page.getViewport({ scale: pdfScale * (windowWidth < 768 ? 0.8 : 1.5) });
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        
+        let targetScale = pdfScale;
+        const padding = 40;
+        const availableWidth = isDouble ? (container.clientWidth / 2) - padding : container.clientWidth - padding;
+
+        if (pdfFit === "width") {
+          targetScale = (availableWidth / unscaledViewport.width) * pdfScale;
+        } else if (pdfFit === "page") {
+          const availableHeight = container.clientHeight - padding;
+          const scaleW = availableWidth / unscaledViewport.width;
+          const scaleH = availableHeight / unscaledViewport.height;
+          targetScale = Math.min(scaleW, scaleH) * pdfScale;
+        }
+
+        const viewport = page.getViewport({ scale: targetScale });
         const canvas = canvasRef.current!;
         const context = canvas.getContext("2d");
-        
-        if (!context) return;
+        if (context) {
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          const renderTask = (page as any).render({ canvasContext: context, viewport });
+          renderTaskRef.current = renderTask;
+          await renderTask.promise;
+        }
 
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        // Render second page if in double spread mode
+        if (isDouble && pdfPage < pdfTotalPages && canvasRefRight.current) {
+          const pageRight = await pdf.getPage(pdfPage + 1);
+          const canvasRight = canvasRefRight.current;
+          const contextRight = canvasRight.getContext("2d");
+          if (contextRight) {
+            canvasRight.height = viewport.height;
+            canvasRight.width = viewport.width;
+            const renderTaskRight = (pageRight as any).render({ canvasContext: contextRight, viewport });
+            renderTaskRefRight.current = renderTaskRight;
+            await renderTaskRight.promise;
+          }
+        }
 
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-
-        const renderTask = (page as any).render(renderContext);
-        renderTaskRef.current = renderTask;
-        
-        await renderTask.promise;
-        renderTaskRef.current = null;
         localStorage.setItem(`read_pos_${bookUrl}`, pdfPage.toString());
       } catch (err: any) {
-        if (err.name === "RenderingCancelledException") {
-          // Expected when a new render starts
-          return;
-        }
+        if (err.name === "RenderingCancelledException") return;
         console.error("PDF Render Error:", err);
       }
     };
 
     renderPage();
-  }, [pdf, pdfPage, pdfScale, bookUrl, windowWidth]);
+  }, [pdf, pdfPage, pdfScale, pdfFit, pdfSpread, bookUrl, windowWidth]);
 
   // Keyboard navigation for PDF
   useEffect(() => {
@@ -294,9 +341,35 @@ export default function Reader() {
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [isPdf, pdfTotalPages]); // pdfTotalPages needed for pdfNext
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  const toggleControls = () => setShowControls(!showControls);
+
   // PDF Navigation
-  const pdfNext = () => setPdfPage((prev) => Math.min(prev + 1, pdfTotalPages));
-  const pdfPrev = () => setPdfPage((prev) => Math.max(prev - 1, 1));
+  const pdfNext = () => {
+    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
+    setPdfPage((prev) => Math.min(prev + step, pdfTotalPages));
+  };
+  const pdfPrev = () => {
+    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
+    setPdfPage((prev) => Math.max(prev - step, 1));
+  };
 
   // Update settings without full re-render
   useEffect(() => {
@@ -323,42 +396,78 @@ export default function Reader() {
   }
 
   return (
-    <div className="reader-container" style={{ backgroundColor: THEMES[theme].bg }}>
+    <div className="reader-container h-screen flex flex-col overflow-hidden" style={{ backgroundColor: THEMES[theme].bg }}>
       {/* Header */}
-      <div className="h-14 bg-white/80 backdrop-blur-md border-b border-black/5 flex items-center justify-between px-4 z-30">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-black/5 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <h2 className="text-sm font-serif text-[var(--text-color)] truncate max-w-[200px] md:max-w-md">
-            {bookTitle}
-          </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setShowToc(!showToc);
-              if (showSettings) setShowSettings(false);
+      <AnimatePresence>
+        {showControls && (
+          <motion.div 
+            initial={{ y: -60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -60, opacity: 0 }}
+            className="h-14 backdrop-blur-md border-b flex items-center justify-between px-4 z-40 transition-colors fixed top-0 left-0 right-0"
+            style={{ 
+              backgroundColor: `${THEMES[theme].bg}CC`, 
+              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              color: THEMES[theme].fg
             }}
-            className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showToc ? 'bg-black/5' : ''} ${isPdf ? 'hidden' : ''}`}
-            title="目录"
           >
-            <List className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={() => {
-              setShowSettings(!showSettings);
-              if (showToc) setShowToc(false);
-            }}
-            className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showSettings ? 'bg-black/5' : ''}`}
-            title="设置"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2 hover:bg-black/5 rounded-full transition-colors"
+                style={{ color: THEMES[theme].fg }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="text-sm font-serif truncate max-w-[150px] md:max-w-md">
+                {bookTitle}
+              </h2>
+            </div>
+            <div className="flex items-center gap-1 md:gap-2">
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 hover:bg-black/5 rounded-full transition-colors"
+                title="全屏"
+                style={{ color: THEMES[theme].fg }}
+              >
+                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => {
+                  setShowToc(!showToc);
+                  if (showSettings) setShowSettings(false);
+                }}
+                className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showToc ? 'bg-black/5' : ''} ${isPdf ? 'hidden' : ''}`}
+                title="目录"
+                style={{ color: THEMES[theme].fg }}
+              >
+                <List className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => {
+                  setShowSettings(!showSettings);
+                  if (showToc) setShowToc(false);
+                }}
+                className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showSettings ? 'bg-black/5' : ''}`}
+                title="设置"
+                style={{ color: THEMES[theme].fg }}
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Progress Bar (Visual) */}
+      <div className="fixed top-0 left-0 right-0 h-0.5 z-50">
+        <div 
+          className="h-full bg-[#8b7e66] transition-all duration-300"
+          style={{ 
+            width: isPdf ? `${(pdfPage / pdfTotalPages) * 100}%` : '0%', // EPUB percentage would need location calculation
+            opacity: showControls ? 1 : 0.3
+          }}
+        />
       </div>
 
       {/* Main Content */}
@@ -389,13 +498,23 @@ export default function Reader() {
                 </div>
                 <ul className="space-y-1 flex-1 overflow-y-auto">
                   {toc.map((item) => (
-                    <li key={item.id}>
+                    <li key={item.id || item.href}>
                       <button
-                        onClick={() => {
-                          renditionRef.current?.display(item.href);
+                        onClick={async () => {
+                          if (item.isPdf) {
+                            // PDF Jump logic
+                            if (pdf) {
+                              const dest = await pdf.getDestination(item.dest);
+                              const pageIndex = await pdf.getPageIndex(dest[0]);
+                              setPdfPage(pageIndex + 1);
+                            }
+                          } else {
+                            renditionRef.current?.display(item.href);
+                          }
                           if (window.innerWidth < 768) setShowToc(false);
                         }}
                         className="text-left text-base md:text-sm text-[#4a4a4a]/80 hover:text-[#8b7e66] hover:bg-[#fdfaf6] transition-all w-full py-3 md:py-2 px-3 rounded-lg"
+                        style={{ color: THEMES[theme].fg }}
                       >
                         {item.label}
                       </button>
@@ -423,11 +542,20 @@ export default function Reader() {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed inset-x-0 bottom-0 md:absolute md:inset-auto md:right-4 md:top-4 w-full md:w-72 bg-white border-t md:border border-black/5 z-50 md:z-40 rounded-t-3xl md:rounded-2xl shadow-2xl p-6 space-y-8 md:!translate-y-0"
+                className="fixed inset-x-0 bottom-0 md:absolute md:inset-auto md:right-4 md:top-4 w-full md:w-72 border-t md:border z-50 md:z-40 rounded-t-3xl md:rounded-2xl shadow-2xl p-6 space-y-8 md:!translate-y-0"
+                style={{ 
+                  backgroundColor: THEMES[theme].bg, 
+                  color: THEMES[theme].fg,
+                  borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                }}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-serif text-lg text-[#4a4a4a]">阅读设置</h3>
-                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-black/5 rounded-full">
+                  <h3 className="font-serif text-lg">阅读设置</h3>
+                  <button 
+                    onClick={() => setShowSettings(false)} 
+                    className="p-2 hover:bg-black/5 rounded-full"
+                    style={{ color: THEMES[theme].fg }}
+                  >
                     <X className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
                 </div>
@@ -481,38 +609,139 @@ export default function Reader() {
             </div>
 
             {/* Flow Mode / PDF Zoom */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
-                {isPdf ? <Maximize2 className="w-3 h-3" /> : <MousePointer2 className="w-3 h-3" />}
-                {isPdf ? "缩放倍率" : "翻页模式"}
-              </div>
-              {isPdf ? (
-                <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
-                  <button onClick={() => setPdfScale(Math.max(0.5, pdfScale - 0.1))} className="flex-1 py-2 text-xs hover:bg-white rounded-lg transition-all">缩小</button>
-                  <span className="px-4 py-2 text-xs font-medium">{Math.round(pdfScale * 100)}%</span>
-                  <button onClick={() => setPdfScale(Math.min(2.0, pdfScale + 0.1))} className="flex-1 py-2 text-xs hover:bg-white rounded-lg transition-all">放大</button>
+            {/* Flow Mode (EPUB) / PDF Zoom & Fit */}
+            {isPdf ? (
+              <>
+                {/* Fit Mode */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                    <Maximize2 className="w-3 h-3" />
+                    显示模式
+                  </div>
+                  <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                    <button
+                      onClick={() => setPdfFit("width")}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        pdfFit === "width" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                      }`}
+                    >
+                      适合宽度
+                    </button>
+                    <button
+                      onClick={() => setPdfFit("page")}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        pdfFit === "page" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                      }`}
+                    >
+                      适合页面
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
-                  <button
-                    onClick={() => setFlow("paginated")}
-                    className={`flex-1 py-2 text-xs rounded-lg transition-all ${
-                      flow === "paginated" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
-                    }`}
-                  >
-                    左右翻页
-                  </button>
-                  <button
-                    onClick={() => setFlow("scrolled")}
-                    className={`flex-1 py-2 text-xs rounded-lg transition-all ${
-                      flow === "scrolled" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
-                    }`}
-                  >
-                    垂直滚动
-                  </button>
+
+                {/* PDF Page Layout */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                    <BookOpen className="w-3 h-3" />
+                    页面布局
+                  </div>
+                  <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                    <button
+                      onClick={() => setPdfSpread(false)}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        !pdfSpread ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                      }`}
+                    >
+                      单页
+                    </button>
+                    <button
+                      onClick={() => setPdfSpread(true)}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        pdfSpread ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                      }`}
+                    >
+                      双页
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Zoom Slider */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                    <Plus className="w-3 h-3" />
+                    缩放倍率
+                  </div>
+                  <div className="space-y-4 px-2">
+                    <input 
+                      type="range" 
+                      min="0.5" 
+                      max="3" 
+                      step="0.1" 
+                      value={pdfScale} 
+                      onChange={(e) => setPdfScale(parseFloat(e.target.value))}
+                      className="w-full accent-[#8b7e66]"
+                    />
+                    <div className="flex justify-between text-[10px] text-[#8b7e66]/60">
+                      <span>50%</span>
+                      <span className="font-bold text-[#8b7e66]">{Math.round(pdfScale * 100)}%</span>
+                      <span>300%</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                    <MousePointer2 className="w-3 h-3" />
+                    翻页模式
+                  </div>
+                  <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                    <button
+                      onClick={() => setFlow("paginated")}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        flow === "paginated" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
+                      }`}
+                    >
+                      左右翻页
+                    </button>
+                    <button
+                      onClick={() => setFlow("scrolled")}
+                      className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                        flow === "scrolled" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
+                      }`}
+                    >
+                      垂直滚动
+                    </button>
+                  </div>
+                </div>
+                {flow === "paginated" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <BookOpen className="w-3 h-3" />
+                      页面布局
+                    </div>
+                    <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                      <button
+                        onClick={() => setSpread("none")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          spread === "none" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        单页
+                      </button>
+                      <button
+                        onClick={() => setSpread("auto")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          spread === "auto" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        双页 (自动)
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             </motion.div>
           </>
         )}
@@ -577,19 +806,32 @@ export default function Reader() {
             {isPdf ? (
               <div 
                 ref={pdfContainerRef}
-                className="w-full h-full flex flex-col items-center overflow-y-auto pt-8 pb-20 scrollbar-hide"
+                className="w-full h-full flex flex-col items-center overflow-y-auto pt-20 pb-20 scrollbar-hide"
               >
-                <canvas 
-                  ref={canvasRef} 
-                  className="shadow-2xl bg-white max-w-full" 
-                  style={{ 
-                    filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
-                            theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
-                            theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
-                  }}
-                />
-                <div className="mt-6 px-4 py-2 bg-[var(--primary-color)]/80 backdrop-blur-md text-white text-xs rounded-full z-30 shadow-lg">
-                  第 {pdfPage} 页 / 共 {pdfTotalPages} 页
+                <div className={`flex items-start justify-center gap-4 ${pdfSpread && windowWidth > 1024 ? 'w-full px-10' : ''}`}>
+                  <canvas 
+                    ref={canvasRef} 
+                    className="shadow-2xl bg-white max-w-full" 
+                    style={{ 
+                      filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                              theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                              theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+                    }}
+                  />
+                  {pdfSpread && windowWidth > 1024 && pdfPage < pdfTotalPages && (
+                    <canvas 
+                      ref={canvasRefRight} 
+                      className="shadow-2xl bg-white max-w-full" 
+                      style={{ 
+                        filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                                theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                                theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="mt-8 px-6 py-2 bg-[var(--primary-color)]/80 backdrop-blur-md text-white text-[10px] font-serif rounded-full z-30 shadow-lg tracking-widest">
+                  第 {pdfPage}{pdfSpread && windowWidth > 1024 && pdfPage < pdfTotalPages ? `-${pdfPage+1}` : ''} 页 / 共 {pdfTotalPages} 页
                 </div>
               </div>
             ) : (
@@ -615,17 +857,37 @@ export default function Reader() {
 
 
       {/* Mobile Controls */}
-      <div className="md:hidden h-16 bg-[var(--card-bg)]/80 backdrop-blur-md border-t border-[var(--primary-color)]/5 flex items-center justify-around">
-        <button onClick={prev} className="p-4 text-[var(--text-color)]">
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        <div className="text-[10px] text-[var(--primary-color)] opacity-50">
-          {isPdf ? `第 ${pdfPage} / ${pdfTotalPages} 页` : (flow === "paginated" ? "点击左右侧翻页" : "上下滑动阅读")}
-        </div>
-        <button onClick={next} className="p-4 text-[var(--text-color)]">
-          <ChevronRight className="w-6 h-6" />
-        </button>
-      </div>
+      <AnimatePresence>
+        {showControls && (
+          <motion.div 
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            className="md:hidden h-16 backdrop-blur-md border-t flex items-center justify-around fixed bottom-0 left-0 right-0 z-40 transition-colors"
+            style={{ 
+              backgroundColor: `${THEMES[theme].bg}CC`, 
+              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              color: THEMES[theme].fg
+            }}
+          >
+            <button onClick={prev} className="p-4">
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <div className="text-[10px] opacity-50 font-serif">
+              {isPdf ? `第 ${pdfPage} / ${pdfTotalPages} 页` : (flow === "paginated" ? "点击侧边或左右滑动" : "上下滑动阅读")}
+            </div>
+            <button onClick={next} className="p-4">
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Touch Toggle Area */}
+      <div 
+        className="fixed inset-x-0 top-1/4 bottom-1/4 z-0 pointer-events-auto md:w-1/2 md:left-1/4"
+        onClick={toggleControls}
+      />
     </div>
   );
 }
