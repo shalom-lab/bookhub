@@ -192,7 +192,7 @@ export default function Reader() {
                   title={bookTitle}
                   location={location}
                   locationChanged={locationChanged}
-                  styles={readerStyles}
+                  readerStyles={readerStyles}
                   epubOptions={{
                     flow: "paginated",
                     manager: "default",
