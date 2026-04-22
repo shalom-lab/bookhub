@@ -141,13 +141,19 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
       <PDFViewer
         ref={viewerRef}
         config={{
-          src: objectUrl,
+          documentManager: {
+            initialDocuments: [{
+              url: objectUrl,
+              documentId: 'active-doc'
+            }]
+          },
           theme: initialTheme,
           zoom: {
             defaultZoomLevel: 1.0
           },
           scroll: {
-            defaultStrategy: ScrollStrategy.Vertical
+            defaultStrategy: ScrollStrategy.Vertical,
+            defaultPageGap: 20
           },
           // Simplify UI for a better reading experience
           disabledCategories: ['annotation', 'form', 'redaction', 'insert']
