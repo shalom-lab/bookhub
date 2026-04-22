@@ -108,6 +108,10 @@ export default function Reader() {
       color: currentTheme.fg,
       display: 'none', // We hide the default title to provide our own header
     },
+    reader: {
+      ...ReactReaderStyle.reader,
+      top: 20, // Override default 50px top padding since we hide the title area
+    },
     tocArea: {
       ...ReactReaderStyle.tocArea,
       backgroundColor: currentTheme.bg,
@@ -186,7 +190,7 @@ export default function Reader() {
             </div>
           ) : (
             bookData && (
-              <div className="absolute inset-0" style={{ top: '-40px' }}> {/* Adjust for custom header */}
+              <div className="absolute inset-0">
                 <ReactReader
                   url={bookData}
                   title={bookTitle}
