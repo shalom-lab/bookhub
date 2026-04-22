@@ -219,14 +219,22 @@ export default function Reader() {
         try {
           const outline = await pdfDoc.getOutline();
           if (outline) {
-            const formattedToc = outline.map((item: any) => ({
-              id: item.dest,
-              label: item.title,
-              href: item.dest, // dest could be a string or array
-              isPdf: true,
-              dest: item.dest
-            }));
-            setToc(formattedToc);
+            const flattenOutline = (items: any[], level = 0): any[] => {
+              let result: any[] = [];
+              items.forEach(item => {
+                result.push({
+                  id: Math.random().toString(36).substr(2, 9),
+                  label: "  ".repeat(level) + item.title,
+                  isPdf: true,
+                  dest: item.dest
+                });
+                if (item.items && item.items.length > 0) {
+                  result = result.concat(flattenOutline(item.items, level + 1));
+                }
+              });
+              return result;
+            };
+            setToc(flattenOutline(outline));
           }
         } catch (e) {
           console.warn("Could not load PDF outline");
@@ -234,7 +242,10 @@ export default function Reader() {
         
         const savedPage = localStorage.getItem(`read_pos_${bookUrl}`);
         if (savedPage) {
-          setPdfPage(parseInt(savedPage, 10));
+          // Only use numeric saved page if it's not a CFI (EPUB location)
+          if (!savedPage.includes("/") && !savedPage.includes(":")) {
+            setPdfPage(parseInt(savedPage, 10) || 1);
+          }
         }
       } catch (err: any) {
         console.error("Error loading PDF:", err);
@@ -319,7 +330,6 @@ export default function Reader() {
             await renderTaskRight.promise;
           }
         }
-
         localStorage.setItem(`read_pos_${bookUrl}`, pdfPage.toString());
       } catch (err: any) {
         if (err.name === "RenderingCancelledException") return;
@@ -330,6 +340,17 @@ export default function Reader() {
     renderPage();
   }, [pdf, pdfPage, pdfScale, pdfFit, pdfSpread, bookUrl, windowWidth]);
 
+  // PDF Navigation
+  const pdfNext = React.useCallback(() => {
+    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
+    setPdfPage((prev) => Math.min(prev + step, pdfTotalPages));
+  }, [pdfSpread, windowWidth, pdfTotalPages]);
+
+  const pdfPrev = React.useCallback(() => {
+    const step = (pdfSpread && windowWidth > 1024) ? 2 : 1;
+    setPdfPage((prev) => Math.max(prev - step, 1));
+  }, [pdfSpread, windowWidth]);
+
   // Keyboard navigation for PDF
   useEffect(() => {
     if (!isPdf) return;
@@ -339,7 +360,7 @@ export default function Reader() {
     };
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [isPdf, pdfTotalPages]); // pdfTotalPages needed for pdfNext
+  }, [isPdf, pdfPrev, pdfNext]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -504,9 +525,18 @@ export default function Reader() {
                           if (item.isPdf) {
                             // PDF Jump logic
                             if (pdf) {
-                              const dest = await pdf.getDestination(item.dest);
-                              const pageIndex = await pdf.getPageIndex(dest[0]);
-                              setPdfPage(pageIndex + 1);
+                              try {
+                                let dest = item.dest;
+                                if (typeof dest === 'string') {
+                                  dest = await pdf.getDestination(dest);
+                                }
+                                if (Array.isArray(dest)) {
+                                  const pageIndex = await pdf.getPageIndex(dest[0]);
+                                  setPdfPage(pageIndex + 1);
+                                }
+                              } catch (e) {
+                                console.error("PDF Jump failed:", e);
+                              }
                             }
                           } else {
                             renditionRef.current?.display(item.href);
