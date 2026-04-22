@@ -1,8 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import ePub, { Rendition } from "epubjs";
-import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2 } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+import { getBookOffline, saveBookOffline } from "../lib/offline";
+import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2, Maximize2, Minimize2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+// Set worker source for pdfjs
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const THEMES = {
   default: {
@@ -41,6 +46,14 @@ export default function Reader() {
   const [showSettings, setShowSettings] = useState(false);
   const [location, setLocation] = useState<string | null>(null);
   
+  // PDF State
+  const [pdf, setPdf] = useState<any>(null);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfTotalPages, setPdfTotalPages] = useState(0);
+  const [pdfScale, setPdfScale] = useState(1.0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+  
   // Reader Settings
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem("reader_font_size");
@@ -67,66 +80,164 @@ export default function Reader() {
     localStorage.setItem("reader_flow", flow);
   }, [flow]);
 
+  const isPdf = bookUrl?.toLowerCase().endsWith(".pdf");
+
+  // EPUB initialization
   useEffect(() => {
-    if (!bookUrl || !viewerRef.current) return;
+    if (!bookUrl || !viewerRef.current || isPdf) return;
 
-    const book = ePub(bookUrl);
-    const rendition = book.renderTo(viewerRef.current, {
-      width: "100%",
-      height: "100%",
-      flow: flow,
-      manager: flow === "scrolled" ? "continuous" : "default",
-    });
-
-    renditionRef.current = rendition;
-
-    // Register themes
-    Object.entries(THEMES).forEach(([key, value]) => {
-      rendition.themes.register(key, {
-        body: {
-          background: `${value.bg} !important`,
-          color: `${value.fg} !important`,
-          "font-family": "var(--font-serif) !important",
-          padding: window.innerWidth < 768 ? "20px 10px !important" : "40px 0 !important",
-        },
-        "p, div, span, h1, h2, h3, h4, h5, h6": {
-          color: `${value.fg} !important`,
+    const initEpub = async () => {
+      setLoading(true);
+      try {
+        let bookData: any = bookUrl;
+        
+        // Try offline first
+        const offlineBuffer = await getBookOffline(bookUrl);
+        if (offlineBuffer) {
+          bookData = offlineBuffer;
+        } else {
+          // Fetch and save for next time
+          const response = await fetch(bookUrl);
+          const buffer = await response.arrayBuffer();
+          await saveBookOffline(bookUrl, buffer);
+          bookData = buffer;
         }
-      });
-    });
 
-    rendition.themes.select(theme);
-    rendition.themes.fontSize(`${fontSize}%`);
+        const book = ePub(bookData);
+        const rendition = book.renderTo(viewerRef.current!, {
+          width: "100%",
+          height: "100%",
+          flow: flow,
+          manager: flow === "scrolled" ? "continuous" : "default",
+        });
 
-    // Load saved progress
-    const savedLocation = localStorage.getItem(`read_pos_${bookUrl}`);
-    const display = rendition.display(savedLocation || undefined);
+        renditionRef.current = rendition;
 
-    display.then(() => {
-      setLoading(false);
-    });
+        // Register themes
+        Object.entries(THEMES).forEach(([key, value]) => {
+          rendition.themes.register(key, {
+            body: {
+              background: `${value.bg} !important`,
+              color: `${value.fg} !important`,
+              "font-family": "var(--font-serif) !important",
+              padding: window.innerWidth < 768 ? "20px 10px !important" : "40px 0 !important",
+            },
+            "p, div, span, h1, h2, h3, h4, h5, h6": {
+              color: `${value.fg} !important`,
+            }
+          });
+        });
 
-    book.loaded.navigation.then((nav) => {
-      setToc(nav.toc);
-    });
+        rendition.themes.select(theme);
+        rendition.themes.fontSize(`${fontSize}%`);
 
-    rendition.on("relocated", (location: any) => {
-      setLocation(location.start.cfi);
-      localStorage.setItem(`read_pos_${bookUrl}`, location.start.cfi);
-    });
+        // Load saved progress
+        const savedLocation = localStorage.getItem(`read_pos_${bookUrl}`);
+        const display = rendition.display(savedLocation || undefined);
 
-    // Keyboard navigation
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") rendition.prev();
-      if (e.key === "ArrowRight") rendition.next();
+        display.then(() => {
+          setLoading(false);
+        });
+
+        book.loaded.navigation.then((nav) => {
+          setToc(nav.toc);
+        });
+
+        rendition.on("relocated", (location: any) => {
+          setLocation(location.start.cfi);
+          localStorage.setItem(`read_pos_${bookUrl}`, location.start.cfi);
+        });
+
+        // Keyboard navigation
+        const handleKeydown = (e: KeyboardEvent) => {
+          if (e.key === "ArrowLeft") rendition.prev();
+          if (e.key === "ArrowRight") rendition.next();
+        };
+        window.addEventListener("keydown", handleKeydown);
+
+        return () => {
+          book.destroy();
+          window.removeEventListener("keydown", handleKeydown);
+        };
+      } catch (err) {
+        console.error("Failed to load EPUB:", err);
+        setLoading(false);
+      }
     };
-    window.addEventListener("keydown", handleKeydown);
 
-    return () => {
-      book.destroy();
-      window.removeEventListener("keydown", handleKeydown);
+    initEpub();
+  }, [bookUrl, flow, isPdf]);
+
+  // PDF initialization
+  useEffect(() => {
+    if (!bookUrl || !isPdf) return;
+
+    const loadPdf = async () => {
+      setLoading(true);
+      try {
+        let pdfData: any = bookUrl;
+        
+        // Try offline first
+        const offlineBuffer = await getBookOffline(bookUrl);
+        if (offlineBuffer) {
+          pdfData = { data: new Uint8Array(offlineBuffer) };
+        } else {
+          // Fetch and save
+          const response = await fetch(bookUrl);
+          const buffer = await response.arrayBuffer();
+          await saveBookOffline(bookUrl, buffer);
+          pdfData = { data: new Uint8Array(buffer) };
+        }
+
+        const loadingTask = pdfjsLib.getDocument(pdfData);
+        const pdfDoc = await loadingTask.promise;
+        setPdf(pdfDoc);
+        setPdfTotalPages(pdfDoc.numPages);
+        
+        const savedPage = localStorage.getItem(`read_pos_${bookUrl}`);
+        if (savedPage) {
+          setPdfPage(parseInt(savedPage, 10));
+        }
+      } catch (error) {
+        console.error("Error loading PDF:", error);
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [bookUrl, flow]); // Re-render when flow changes
+
+    loadPdf();
+  }, [bookUrl, isPdf]);
+
+  // Render PDF page
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+
+    const renderPage = async () => {
+      const page = await pdf.getPage(pdfPage);
+      const viewport = page.getViewport({ scale: pdfScale * (window.innerWidth < 768 ? 0.8 : 1.5) });
+      const canvas = canvasRef.current!;
+      const context = canvas.getContext("2d");
+      
+      if (!context) return;
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      };
+
+      await page.render(renderContext).promise;
+      localStorage.setItem(`read_pos_${bookUrl}`, pdfPage.toString());
+    };
+
+    renderPage();
+  }, [pdf, pdfPage, pdfScale, bookUrl]);
+
+  // PDF Navigation
+  const pdfNext = () => setPdfPage((prev) => Math.min(prev + 1, pdfTotalPages));
+  const pdfPrev = () => setPdfPage((prev) => Math.max(prev - 1, 1));
 
   // Update settings without full re-render
   useEffect(() => {
@@ -141,8 +252,8 @@ export default function Reader() {
     }
   }, [theme]);
 
-  const next = () => renditionRef.current?.next();
-  const prev = () => renditionRef.current?.prev();
+  const next = () => isPdf ? pdfNext() : renditionRef.current?.next();
+  const prev = () => isPdf ? pdfPrev() : renditionRef.current?.prev();
 
   if (!bookUrl) {
     return (
@@ -163,7 +274,7 @@ export default function Reader() {
           >
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-sm font-serif text-[#4a4a4a] truncate max-w-[200px] md:max-w-md">
+          <h2 className="text-sm font-serif text-[var(--text-color)] truncate max-w-[200px] md:max-w-md">
             {bookTitle}
           </h2>
         </div>
@@ -173,7 +284,7 @@ export default function Reader() {
               setShowToc(!showToc);
               if (showSettings) setShowSettings(false);
             }}
-            className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showToc ? 'bg-black/5' : ''}`}
+            className={`p-2 hover:bg-black/5 rounded-full transition-colors ${showToc ? 'bg-black/5' : ''} ${isPdf ? 'hidden' : ''}`}
             title="目录"
           >
             <List className="w-5 h-5" />
@@ -310,30 +421,38 @@ export default function Reader() {
               </div>
             </div>
 
-            {/* Flow Mode */}
+            {/* Flow Mode / PDF Zoom */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
-                <MousePointer2 className="w-3 h-3" />
-                翻页模式
+                {isPdf ? <Maximize2 className="w-3 h-3" /> : <MousePointer2 className="w-3 h-3" />}
+                {isPdf ? "缩放倍率" : "翻页模式"}
               </div>
-              <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
-                <button
-                  onClick={() => setFlow("paginated")}
-                  className={`flex-1 py-2 text-xs rounded-lg transition-all ${
-                    flow === "paginated" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
-                  }`}
-                >
-                  左右翻页
-                </button>
-                <button
-                  onClick={() => setFlow("scrolled")}
-                  className={`flex-1 py-2 text-xs rounded-lg transition-all ${
-                    flow === "scrolled" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
-                  }`}
-                >
-                  垂直滚动
-                </button>
-              </div>
+              {isPdf ? (
+                <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                  <button onClick={() => setPdfScale(Math.max(0.5, pdfScale - 0.1))} className="flex-1 py-2 text-xs hover:bg-white rounded-lg transition-all">缩小</button>
+                  <span className="px-4 py-2 text-xs font-medium">{Math.round(pdfScale * 100)}%</span>
+                  <button onClick={() => setPdfScale(Math.min(2.0, pdfScale + 0.1))} className="flex-1 py-2 text-xs hover:bg-white rounded-lg transition-all">放大</button>
+                </div>
+              ) : (
+                <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                  <button
+                    onClick={() => setFlow("paginated")}
+                    className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                      flow === "paginated" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
+                    }`}
+                  >
+                    左右翻页
+                  </button>
+                  <button
+                    onClick={() => setFlow("scrolled")}
+                    className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                      flow === "scrolled" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40 hover:text-[#8b7e66]/60'
+                    }`}
+                  >
+                    垂直滚动
+                  </button>
+                </div>
+              )}
             </div>
             </motion.div>
           </>
@@ -352,8 +471,8 @@ export default function Reader() {
           )}
           
           <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
-            {/* Navigation Controls (Only for paginated) */}
-            {flow === "paginated" && (
+            {/* Navigation Controls */}
+            {(flow === "paginated" || isPdf) && (
               <>
                 <button
                   onClick={prev}
@@ -376,10 +495,30 @@ export default function Reader() {
               </>
             )}
 
-            <div 
-              ref={viewerRef} 
-              className={`epub-viewer w-full h-full mx-auto px-4 md:px-16 ${flow === "scrolled" ? 'overflow-y-auto' : ''}`} 
-            />
+            {isPdf ? (
+              <div 
+                ref={pdfContainerRef}
+                className="w-full h-full flex flex-col items-center overflow-y-auto pt-8 pb-20 scrollbar-hide"
+              >
+                <canvas 
+                  ref={canvasRef} 
+                  className="shadow-2xl bg-white max-w-full" 
+                  style={{ 
+                    filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                            theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                            theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+                  }}
+                />
+                <div className="mt-6 px-4 py-2 bg-[var(--primary-color)]/80 backdrop-blur-md text-white text-xs rounded-full z-30 shadow-lg">
+                  第 {pdfPage} 页 / 共 {pdfTotalPages} 页
+                </div>
+              </div>
+            ) : (
+              <div 
+                ref={viewerRef} 
+                className={`epub-viewer w-full h-full mx-auto px-4 md:px-16 ${flow === "scrolled" ? 'overflow-y-auto' : ''}`} 
+              />
+            )}
 
             {/* Mobile Touch Zones */}
             {flow === "paginated" && (
@@ -397,14 +536,14 @@ export default function Reader() {
 
 
       {/* Mobile Controls */}
-      <div className="md:hidden h-16 bg-white/80 backdrop-blur-md border-t border-black/5 flex items-center justify-around">
-        <button onClick={prev} className="p-4">
+      <div className="md:hidden h-16 bg-[var(--card-bg)]/80 backdrop-blur-md border-t border-[var(--primary-color)]/5 flex items-center justify-around">
+        <button onClick={prev} className="p-4 text-[var(--text-color)]">
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <div className="text-[10px] text-[#8b7e66] opacity-50">
-          {flow === "paginated" ? "点击左右侧翻页" : "上下滑动阅读"}
+        <div className="text-[10px] text-[var(--primary-color)] opacity-50">
+          {isPdf ? `第 ${pdfPage} / ${pdfTotalPages} 页` : (flow === "paginated" ? "点击左右侧翻页" : "上下滑动阅读")}
         </div>
-        <button onClick={next} className="p-4">
+        <button onClick={next} className="p-4 text-[var(--text-color)]">
           <ChevronRight className="w-6 h-6" />
         </button>
       </div>

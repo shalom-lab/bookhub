@@ -5,9 +5,27 @@
   --font-sans: "Inter", "Noto Sans SC", "PingFang SC", sans-serif;
 }
 
+:root {
+  --bg-color: #fdfaf6;
+  --text-color: #4a4a4a;
+  --primary-color: #8b7e66;
+  --card-bg: #ffffff;
+  --accent-bg: #fdfaf6;
+}
+
+[data-theme='dark'] {
+  --bg-color: #1a1a1a;
+  --text-color: #d1d1d1;
+  --primary-color: #a89a85;
+  --card-bg: #2d2d2d;
+  --accent-bg: #252525;
+}
+
 @layer base {
   body {
-    @apply bg-[#fdfaf6] text-[#4a4a4a] font-sans;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    @apply font-sans transition-colors duration-300;
   }
 }
 

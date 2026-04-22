@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { uploadBook, getGitHubConfig } from "../lib/github";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { extractCover } from "../lib/covers";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Image as ImageIcon } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Uploader() {
@@ -11,22 +12,37 @@ export default function Uploader() {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [extractingCover, setExtractingCover] = useState(false);
 
   const config = getGitHubConfig();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
+      setCoverPreview(null);
+      
       // Auto-fill title from filename if empty
       if (!title) {
-        setTitle(selectedFile.name.replace(".epub", ""));
+        setTitle(selectedFile.name.replace(/\.(epub|pdf)$/i, ""));
       }
       // Auto-fill category if empty (e.g., from filename prefix if exists)
       if (!category && selectedFile.name.includes("_")) {
         setCategory(selectedFile.name.split("_")[0]);
       }
       setStatus("idle");
+
+      // Extract cover
+      setExtractingCover(true);
+      try {
+        const cover = await extractCover(selectedFile);
+        setCoverPreview(cover);
+      } catch (err) {
+        console.error("Failed to extract cover", err);
+      } finally {
+        setExtractingCover(false);
+      }
     }
   };
 
@@ -39,10 +55,11 @@ export default function Uploader() {
     setError("");
 
     try {
-      const fileName = await uploadBook(config, file, title, category);
+      const fileName = await uploadBook(config, file, title, category, coverPreview);
       setUploadedFileName(fileName);
       setStatus("success");
       setFile(null);
+      setCoverPreview(null);
       setTitle("");
       setCategory("");
     } catch (err: any) {
@@ -56,9 +73,9 @@ export default function Uploader() {
   if (!config) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-        <AlertCircle className="w-16 h-16 text-[#8b7e66] mb-4 opacity-50" />
-        <h2 className="text-2xl font-serif mb-2">配置缺失</h2>
-        <p className="text-[#8b7e66] mb-6">请先在设置中配置您的 GitHub 仓库信息</p>
+        <AlertCircle className="w-16 h-16 text-[var(--primary-color)] mb-4 opacity-50" />
+        <h2 className="text-2xl font-serif mb-2 text-[var(--text-color)]">配置缺失</h2>
+        <p className="text-[var(--primary-color)] mb-6">请先在设置中配置您的 GitHub 仓库信息</p>
       </div>
     );
   }
@@ -68,35 +85,44 @@ export default function Uploader() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-[#8b7e66]/10"
+        className="bg-[var(--card-bg)] rounded-2xl p-6 md:p-8 shadow-sm border border-[var(--primary-color)]/10"
       >
         <div className="flex items-center gap-3 mb-8">
-          <Upload className="w-6 h-6 text-[#8b7e66]" />
-          <h1 className="text-2xl font-serif text-[#4a4a4a]">上传新书</h1>
+          <Upload className="w-6 h-6 text-[var(--primary-color)]" />
+          <h1 className="text-2xl font-serif text-[var(--text-color)]">上传新书</h1>
         </div>
 
         <form onSubmit={handleUpload} className="space-y-6">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-[#8b7e66]">选择 EPUB 文件</label>
+            <label className="block text-sm font-medium text-[var(--primary-color)]">选择书籍文件 (EPUB / PDF)</label>
             <div className="relative">
               <input
                 type="file"
-                accept=".epub"
+                accept=".epub,.pdf"
                 onChange={handleFileChange}
                 className="hidden"
-                id="epub-upload"
+                id="book-upload"
               />
               <label
-                htmlFor="epub-upload"
-                className="flex flex-col items-center justify-center w-full h-40 md:h-32 border-2 border-dashed border-[#8b7e66]/20 rounded-xl cursor-pointer hover:bg-[#fdfaf6] transition-colors"
+                htmlFor="book-upload"
+                className="flex flex-col items-center justify-center w-full h-40 md:h-32 border-2 border-dashed border-[var(--primary-color)]/20 rounded-xl cursor-pointer hover:bg-[var(--accent-bg)] transition-colors"
               >
                 {file ? (
-                  <div className="flex items-center gap-2 text-[#4a4a4a]">
-                    <FileText className="w-5 h-5" />
-                    <span className="text-sm truncate max-w-[200px]">{file.name}</span>
+                  <div className="flex flex-col items-center gap-3">
+                    {coverPreview ? (
+                      <img src={coverPreview} alt="Cover Preview" className="w-20 h-28 object-cover rounded-md shadow-md border border-white/20" />
+                    ) : extractingCover ? (
+                      <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-color)]" />
+                    ) : (
+                      <ImageIcon className="w-12 h-12 text-[var(--primary-color)]/30" />
+                    )}
+                    <div className="flex items-center gap-2 text-[var(--text-color)]">
+                      <FileText className="w-4 h-4 text-[var(--primary-color)]" />
+                      <span className="text-sm font-medium truncate max-w-[200px]">{file.name}</span>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-2 text-[#8b7e66]/60">
+                  <div className="flex flex-col items-center gap-2 text-[var(--primary-color)]/60">
                     <Upload className="w-8 h-8" />
                     <span className="text-sm">点击或拖拽文件到这里</span>
                   </div>
@@ -107,24 +133,24 @@ export default function Uploader() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#8b7e66]">书名</label>
+              <label className="block text-sm font-medium text-[var(--primary-color)]">书名</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="例如：牛津通识读本"
-                className="w-full px-4 py-2 bg-[#fdfaf6] border border-[#8b7e66]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8b7e66]/30"
+                className="w-full px-4 py-2 bg-[var(--accent-bg)] border border-[var(--primary-color)]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]/30 text-[var(--text-color)]"
                 required
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#8b7e66]">分类</label>
+              <label className="block text-sm font-medium text-[var(--primary-color)]">分类</label>
               <input
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="例如：Math"
-                className="w-full px-4 py-2 bg-[#fdfaf6] border border-[#8b7e66]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8b7e66]/30"
+                className="w-full px-4 py-2 bg-[var(--accent-bg)] border border-[var(--primary-color)]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]/30 text-[var(--text-color)]"
                 required
               />
             </div>
@@ -134,7 +160,7 @@ export default function Uploader() {
             <button
               type="submit"
               disabled={uploading || !file || !title || !category}
-              className="w-full py-3 bg-[#8b7e66] text-white rounded-xl hover:bg-[#7a6d55] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#8b7e66]/20"
+              className="w-full py-3 bg-[var(--primary-color)] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--primary-color)]/20"
             >
               {uploading ? (
                 <>
@@ -176,13 +202,13 @@ export default function Uploader() {
           )}
         </form>
 
-        <div className="mt-8 p-4 bg-[#fdfaf6] rounded-xl border border-[#8b7e66]/10">
-          <h3 className="text-sm font-serif text-[#8b7e66] mb-2 flex items-center gap-2">
+        <div className="mt-8 p-4 bg-[var(--accent-bg)] rounded-xl border border-[var(--primary-color)]/10">
+          <h3 className="text-sm font-serif text-[var(--primary-color)] mb-2 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             上传说明
           </h3>
-          <ul className="text-xs text-[#8b7e66]/70 space-y-1 list-disc pl-4">
-            <li>文件将自动重命名为 <code>分类_书名.epub</code> 格式。</li>
+          <ul className="text-xs text-[var(--primary-color)]/70 space-y-1 list-disc pl-4">
+            <li>文件将自动重命名为 <code>分类_书名.epub</code> 或 <code>分类_书名.pdf</code> 格式。</li>
             <li>GitHub API 限制文件大小约为 25MB。</li>
             <li>上传后可能需要几秒钟时间才能在书架中显示。</li>
           </ul>

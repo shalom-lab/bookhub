@@ -103,6 +103,7 @@ export interface BookFile {
   download_url: string;
   category: string;
   title: string;
+  cover_url?: string;
 }
 
 export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
@@ -114,22 +115,43 @@ export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
       path: "book",
     });
 
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .filter((file: any) => file.name.endsWith(".epub"))
-      .map((file: any) => {
-        const [category, ...titleParts] = file.name.replace(".epub", "").split("_");
-        const title = titleParts.join("_") || category; // Fallback if no underscore
-        return {
-          name: file.name,
-          path: file.path,
-          sha: file.sha,
-          download_url: file.download_url,
-          category: titleParts.length > 0 ? category : "未分类",
-          title: title,
-        };
+    const contents = data as any[];
+    const bookFiles = contents.filter((file: any) => file.name.endsWith(".epub") || file.name.endsWith(".pdf"));
+    
+    // Try to get covers
+    let coverFiles: any[] = [];
+    try {
+      const { data: coverData } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner: config.owner,
+        repo: config.repo,
+        path: "cover",
       });
+      if (Array.isArray(coverData)) {
+        coverFiles = coverData;
+      }
+    } catch (e) {
+      // cover folder might not exist
+    }
+
+    return bookFiles.map((file: any) => {
+      const isEpub = file.name.endsWith(".epub");
+      const extension = isEpub ? ".epub" : ".pdf";
+      const baseName = file.name.replace(extension, "");
+      const [category, ...titleParts] = baseName.split("_");
+      const title = titleParts.join("_") || category;
+      
+      const coverFile = coverFiles.find(f => f.name === `${baseName}.jpg`);
+
+      return {
+        name: file.name,
+        path: file.path,
+        sha: file.sha,
+        download_url: file.download_url,
+        category: titleParts.length > 0 ? category : "未分类",
+        title: title,
+        cover_url: coverFile?.download_url,
+      };
+    });
   } catch (error) {
     console.error("Error fetching books:", error);
     return [];
@@ -140,7 +162,8 @@ export const uploadBook = async (
   config: GitHubConfig,
   file: File,
   title: string,
-  category: string
+  category: string,
+  coverBase64?: string | null
 ): Promise<string> => {
   const octokit = getOctokit(config.token);
   const reader = new FileReader();
@@ -149,7 +172,8 @@ export const uploadBook = async (
     reader.onload = async () => {
       try {
         const content = (reader.result as string).split(",")[1];
-        const fileName = `${category}_${title}.epub`;
+        const extension = file.name.toLowerCase().endsWith(".pdf") ? ".pdf" : ".epub";
+        const fileName = `${category}_${title}${extension}`;
         const path = `book/${fileName}`;
 
         // Try to get existing file to get its SHA for replacement
@@ -175,6 +199,32 @@ export const uploadBook = async (
           content: content,
           sha: sha,
         });
+
+        // Upload cover if provided
+        if (coverBase64) {
+          const coverContent = coverBase64.split(",")[1];
+          const coverPath = `cover/${category}_${title}.jpg`;
+          
+          let coverSha: string | undefined;
+          try {
+            const { data: cData } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+              owner: config.owner,
+              repo: config.repo,
+              path: coverPath,
+            });
+            if (!Array.isArray(cData)) coverSha = cData.sha;
+          } catch (e) {}
+
+          await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
+            owner: config.owner,
+            repo: config.repo,
+            path: coverPath,
+            message: `${coverSha ? "Update" : "Upload"} cover: ${category}_${title}.jpg`,
+            content: coverContent,
+            sha: coverSha,
+          });
+        }
+
         resolve(fileName);
       } catch (error) {
         reject(error);
