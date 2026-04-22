@@ -5,12 +5,16 @@ import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
   bookUrl: string;
+  theme?: 'light' | 'dark' | 'sepia' | 'green';
 }
 
-export default function PdfViewer({ bookUrl }: PdfViewerProps) {
+export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Map our themes to PDF viewer themes
+  const pdfTheme = theme === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
     if (!bookUrl) return;
@@ -84,7 +88,7 @@ export default function PdfViewer({ bookUrl }: PdfViewerProps) {
       <PDFViewer
         config={{
           src: objectUrl,
-          theme: { preference: 'light' }
+          theme: { preference: pdfTheme }
         }}
       />
     </div>
