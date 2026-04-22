@@ -103,7 +103,10 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-white">
+    <div 
+      className="w-full flex flex-col overflow-hidden bg-white"
+      style={{ height: 'calc(100vh - 64px)' }}
+    >
       <PDFViewer
         ref={viewerRef}
         theme={initialTheme}
