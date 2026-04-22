@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getBookOffline, saveBookOffline } from "../lib/offline";
-import { RPProvider, RPLayout, RPPages, RPConfig } from '@react-pdf-kit/viewer';
+import { PDFViewer } from '@embedpdf/react-pdf-viewer';
 import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
@@ -81,13 +81,12 @@ export default function PdfViewer({ bookUrl }: PdfViewerProps) {
 
   return (
     <div className="w-full h-full relative" style={{ height: '100vh' }}>
-      <RPConfig>
-        <RPProvider src={objectUrl}>
-          <RPLayout toolbar style={{ height: '100vh', width: '100%' }}>
-            <RPPages />
-          </RPLayout>
-        </RPProvider>
-      </RPConfig>
+      <PDFViewer
+        config={{
+          src: objectUrl,
+          theme: { preference: 'light' }
+        }}
+      />
     </div>
   );
 }

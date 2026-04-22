@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@embedpdf/react-pdf-viewer": "^2.14.1",
     "@google/genai": "^1.29.0",
-    "@react-pdf-kit/viewer": "^2.3.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "better-sqlite3": "^12.4.1",
