@@ -6,8 +6,9 @@ import { getBookOffline, saveBookOffline } from "../lib/offline";
 import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2, Maximize2, Minimize2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-// Set worker source for pdfjs
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set worker source for pdfjs - using unpkg for version 5.x
+// @ts-ignore
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs`;
 
 const THEMES = {
   default: {
@@ -41,6 +42,7 @@ export default function Reader() {
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toc, setToc] = useState<any[]>([]);
   const [showToc, setShowToc] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -80,7 +82,7 @@ export default function Reader() {
     localStorage.setItem("reader_flow", flow);
   }, [flow]);
 
-  const isPdf = bookUrl?.toLowerCase().endsWith(".pdf");
+  const isPdf = bookUrl?.split('?')[0].toLowerCase().endsWith(".pdf");
 
   // EPUB initialization
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function Reader() {
 
     const initEpub = async () => {
       setLoading(true);
+      setError(null);
       try {
         let bookData: any = bookUrl;
         
@@ -98,6 +101,7 @@ export default function Reader() {
         } else {
           // Fetch and save for next time
           const response = await fetch(bookUrl);
+          if (!response.ok) throw new Error(`书籍获取失败: ${response.status} ${response.statusText}`);
           const buffer = await response.arrayBuffer();
           await saveBookOffline(bookUrl, buffer);
           bookData = buffer;
@@ -174,6 +178,7 @@ export default function Reader() {
 
     const loadPdf = async () => {
       setLoading(true);
+      setError(null);
       try {
         let pdfData: any = bookUrl;
         
@@ -184,6 +189,7 @@ export default function Reader() {
         } else {
           // Fetch and save
           const response = await fetch(bookUrl);
+          if (!response.ok) throw new Error(`PDF 获取失败: ${response.status} ${response.statusText}`);
           const buffer = await response.arrayBuffer();
           await saveBookOffline(bookUrl, buffer);
           pdfData = { data: new Uint8Array(buffer) };
@@ -191,49 +197,102 @@ export default function Reader() {
 
         const loadingTask = pdfjsLib.getDocument(pdfData);
         const pdfDoc = await loadingTask.promise;
+        
+        if (pdfDoc.numPages === 0) {
+          throw new Error("该 PDF 文件不包含任何页面或已损坏");
+        }
+        
         setPdf(pdfDoc);
         setPdfTotalPages(pdfDoc.numPages);
+        setError(null);
         
         const savedPage = localStorage.getItem(`read_pos_${bookUrl}`);
         if (savedPage) {
           setPdfPage(parseInt(savedPage, 10));
         }
-      } catch (error) {
-        console.error("Error loading PDF:", error);
+      } catch (err: any) {
+        console.error("Error loading PDF:", err);
+        setError(err.message || "加载 PDF 失败");
+        if (err.message?.includes("worker")) {
+          setError("PDF 解析引擎加载失败，请检查网络连接");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadPdf();
+
+    return () => {
+      if (pdf) {
+        pdf.destroy();
+      }
+    };
   }, [bookUrl, isPdf]);
 
+  // Handle window resize for PDF
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // Render PDF page
+  const renderTaskRef = useRef<any>(null);
   useEffect(() => {
     if (!pdf || !canvasRef.current) return;
 
     const renderPage = async () => {
-      const page = await pdf.getPage(pdfPage);
-      const viewport = page.getViewport({ scale: pdfScale * (window.innerWidth < 768 ? 0.8 : 1.5) });
-      const canvas = canvasRef.current!;
-      const context = canvas.getContext("2d");
-      
-      if (!context) return;
+      // Cancel previous render task if exists
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
 
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+      try {
+        const page = await pdf.getPage(pdfPage);
+        const viewport = page.getViewport({ scale: pdfScale * (windowWidth < 768 ? 0.8 : 1.5) });
+        const canvas = canvasRef.current!;
+        const context = canvas.getContext("2d");
+        
+        if (!context) return;
 
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport,
-      };
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
 
-      await page.render(renderContext).promise;
-      localStorage.setItem(`read_pos_${bookUrl}`, pdfPage.toString());
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        const renderTask = (page as any).render(renderContext);
+        renderTaskRef.current = renderTask;
+        
+        await renderTask.promise;
+        renderTaskRef.current = null;
+        localStorage.setItem(`read_pos_${bookUrl}`, pdfPage.toString());
+      } catch (err: any) {
+        if (err.name === "RenderingCancelledException") {
+          // Expected when a new render starts
+          return;
+        }
+        console.error("PDF Render Error:", err);
+      }
     };
 
     renderPage();
-  }, [pdf, pdfPage, pdfScale, bookUrl]);
+  }, [pdf, pdfPage, pdfScale, bookUrl, windowWidth]);
+
+  // Keyboard navigation for PDF
+  useEffect(() => {
+    if (!isPdf) return;
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") pdfPrev();
+      if (e.key === "ArrowRight") pdfNext();
+    };
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [isPdf, pdfTotalPages]); // pdfTotalPages needed for pdfNext
 
   // PDF Navigation
   const pdfNext = () => setPdfPage((prev) => Math.min(prev + 1, pdfTotalPages));
@@ -466,7 +525,27 @@ export default function Reader() {
         >
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center z-50" style={{ backgroundColor: THEMES[theme].bg }}>
-              <Loader2 className="w-8 h-8 animate-spin text-[#8b7e66]" />
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-[#8b7e66]" />
+                <p className="text-sm text-[#8b7e66] font-serif">正在准备书籍...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center z-50 px-6 text-center" style={{ backgroundColor: THEMES[theme].bg }}>
+              <div className="max-w-xs space-y-4">
+                <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+                  <X className="w-6 h-6 text-red-500" />
+                </div>
+                <p className="text-[var(--text-color)] font-serif">{error}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-2 bg-[var(--primary-color)] text-white rounded-full text-sm"
+                >
+                  重试
+                </button>
+              </div>
             </div>
           )}
           

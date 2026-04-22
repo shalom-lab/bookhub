@@ -1,8 +1,9 @@
 import ePub from "epubjs";
 import * as pdfjsLib from "pdfjs-dist";
 
-// Set worker source for pdfjs
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set worker source for pdfjs - using unpkg for version 5.x
+// @ts-ignore
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.6.205/build/pdf.worker.min.mjs`;
 
 export const extractCover = async (file: File): Promise<string | null> => {
   const extension = file.name.toLowerCase().split(".").pop();
@@ -27,8 +28,11 @@ const resizeImage = (dataUrl: string, maxWidth = 400): Promise<string> => {
         return;
       }
       canvas.width = maxWidth;
-      canvas.height = img.height * scale;
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL("image/jpeg", 0.8));
     };
     img.src = dataUrl;
@@ -62,7 +66,7 @@ const extractEpubCover = async (file: File): Promise<string | null> => {
 const extractPdfCover = async (file: File): Promise<string | null> => {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
     
@@ -75,9 +79,17 @@ const extractPdfCover = async (file: File): Promise<string | null> => {
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    await page.render({ canvasContext: context, viewport: viewport }).promise;
+    await (page as any).render({ 
+      canvasContext: context, 
+      viewport: viewport 
+    }).promise;
     
-    return canvas.toDataURL("image/jpeg", 0.8);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    
+    // Cleanup
+    pdf.destroy();
+    
+    return dataUrl;
   } catch (error) {
     console.error("Error extracting PDF cover:", error);
     return null;
