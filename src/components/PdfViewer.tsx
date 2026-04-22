@@ -180,7 +180,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-full flex flex-col bg-white">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-white">
       <PDFViewer
         ref={viewerRef}
         theme={initialTheme}
