@@ -28,9 +28,12 @@ export default function Reader() {
   
   // Custom UI State
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<keyof typeof THEMES>(() => 
-    (localStorage.getItem("reader_theme") as keyof typeof THEMES) || "light"
-  );
+  const [theme, setTheme] = useState<keyof typeof THEMES>(() => {
+    const saved = localStorage.getItem("reader_theme");
+    if (saved === "default") return "light";
+    if (saved === "parchment") return "sepia";
+    return (saved as keyof typeof THEMES) || "light";
+  });
   const [fontSize, setFontSize] = useState(() => 
     parseInt(localStorage.getItem("reader_font_size") || "110", 10)
   );
@@ -90,7 +93,7 @@ export default function Reader() {
 
   if (!bookUrl) return <div className="flex items-center justify-center h-screen bg-[#fdfaf6]">未找到书籍</div>;
 
-  const currentTheme = THEMES[theme];
+  const currentTheme = THEMES[theme] || THEMES.light;
 
   // Customize ReactReader styles
   const readerStyles = {
