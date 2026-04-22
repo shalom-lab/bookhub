@@ -80,7 +80,7 @@ export default function PdfViewer({ bookUrl }: PdfViewerProps) {
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-full relative" style={{ height: '100vh' }}>
+    <div className="w-full h-full relative">
       <PDFViewer
         config={{
           src: objectUrl,
