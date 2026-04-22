@@ -228,31 +228,18 @@ export default function BookShelf() {
                               <div className="book-spine" />
                               <div className="book-texture" />
 
-                              {book.cover_url ? (
-                                <div className="absolute inset-0 z-0">
-                                  <img
-                                    src={book.cover_url}
-                                    alt={book.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                  />
-                                  <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="w-full h-px bg-black/5 mt-4 z-10" />
-                                  <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                    <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
-                                      {book.title}
-                                    </h3>
-                                  </div>
-                                  <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
-                                    <div className="w-8 h-px bg-black/20" />
-                                    <span className="text-[10px] uppercase tracking-widest text-[var(--primary-color)] font-medium">
-                                      {book.category}
-                                    </span>
-                                  </div>
-                                </>
-                              )}
+                              <div className="w-full h-px bg-black/5 mt-4 z-10" />
+                              <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
+                                <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">
+                                  {book.title}
+                                </h3>
+                              </div>
+                              <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
+                                <div className="w-8 h-px bg-black/20" />
+                                <span className="text-[10px] uppercase tracking-widest text-[var(--primary-color)] font-medium">
+                                  {book.category}
+                                </span>
+                              </div>
 
                               {cachedUrls.includes(book.download_url) && (
                                 <div className="absolute top-3 left-3 z-30 bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/20" title="已离线缓存">

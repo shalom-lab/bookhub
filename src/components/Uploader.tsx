@@ -12,8 +12,6 @@ export default function Uploader() {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [uploadedFileName, setUploadedFileName] = useState("");
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
-  const [extractingCover, setExtractingCover] = useState(false);
 
   const config = getGitHubConfig();
 
@@ -21,7 +19,6 @@ export default function Uploader() {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setCoverPreview(null);
       
       // Auto-fill title from filename if empty
       if (!title) {
@@ -32,17 +29,6 @@ export default function Uploader() {
         setCategory(selectedFile.name.split("_")[0]);
       }
       setStatus("idle");
-
-      // Extract cover
-      setExtractingCover(true);
-      try {
-        const cover = await extractCover(selectedFile);
-        setCoverPreview(cover);
-      } catch (err) {
-        console.error("Failed to extract cover", err);
-      } finally {
-        setExtractingCover(false);
-      }
     }
   };
 
@@ -55,11 +41,11 @@ export default function Uploader() {
     setError("");
 
     try {
-      const fileName = await uploadBook(config, file, title, category, coverPreview);
+      // coverPreview is now always null
+      const fileName = await uploadBook(config, file, title, category, null);
       setUploadedFileName(fileName);
       setStatus("success");
       setFile(null);
-      setCoverPreview(null);
       setTitle("");
       setCategory("");
     } catch (err: any) {
@@ -105,21 +91,15 @@ export default function Uploader() {
               />
               <label
                 htmlFor="book-upload"
-                className="flex flex-col items-center justify-center w-full h-40 md:h-32 border-2 border-dashed border-[var(--primary-color)]/20 rounded-xl cursor-pointer hover:bg-[var(--accent-bg)] transition-colors"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[var(--primary-color)]/20 rounded-xl cursor-pointer hover:bg-[var(--accent-bg)] transition-colors"
               >
                 {file ? (
-                  <div className="flex flex-col items-center gap-3">
-                    {coverPreview ? (
-                      <img src={coverPreview} alt="Cover Preview" className="w-20 h-28 object-cover rounded-md shadow-md border border-white/20" />
-                    ) : extractingCover ? (
-                      <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-color)]" />
-                    ) : (
-                      <ImageIcon className="w-12 h-12 text-[var(--primary-color)]/30" />
-                    )}
+                  <div className="flex flex-col items-center gap-2">
                     <div className="flex items-center gap-2 text-[var(--text-color)]">
-                      <FileText className="w-4 h-4 text-[var(--primary-color)]" />
+                      <FileText className="w-6 h-6 text-[var(--primary-color)]" />
                       <span className="text-sm font-medium truncate max-w-[200px]">{file.name}</span>
                     </div>
+                    <span className="text-xs text-[var(--primary-color)]/60">文件已就绪</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-[var(--primary-color)]/60">
