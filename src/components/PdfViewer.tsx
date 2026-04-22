@@ -78,6 +78,49 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
     }
   }, [theme]);
 
+  // Plugin Integration: Save/Load reading progress
+  useEffect(() => {
+    let unsubscribePageChange: (() => void) | null = null;
+
+    const setupPlugins = async () => {
+      const registry = await viewerRef.current?.registry;
+      if (!registry) return;
+
+      const scroll = registry.getPlugin('scroll').provides();
+
+      // 1. Restore progress on layout ready
+      scroll.onLayoutReady((event) => {
+        if (event.documentId === 'active-doc' && event.isInitial) {
+          const savedProgress = localStorage.getItem(`pdf-progress-${bookUrl}`);
+          if (savedProgress) {
+            const pageNum = parseInt(savedProgress);
+            if (!isNaN(pageNum)) {
+              scroll.scrollToPage({ 
+                pageNumber: pageNum, 
+                behavior: 'instant' 
+              });
+            }
+          }
+        }
+      });
+
+      // 2. Save progress on page change
+      unsubscribePageChange = scroll.onPageChange((event) => {
+        if (event.documentId === 'active-doc') {
+          localStorage.setItem(`pdf-progress-${bookUrl}`, event.pageNumber.toString());
+        }
+      });
+    };
+
+    if (objectUrl && !loading) {
+      setupPlugins();
+    }
+
+    return () => {
+      if (unsubscribePageChange) unsubscribePageChange();
+    };
+  }, [objectUrl, loading, bookUrl]);
+
   useEffect(() => {
     if (!bookUrl) return;
 
