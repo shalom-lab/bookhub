@@ -84,11 +84,14 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-[500px] flex flex-col overflow-hidden border-4 border-red-500">
+    <div className="w-full h-[calc(100vh-56px)] md:h-[calc(100vh-64px)] flex flex-col overflow-hidden bg-white">
       <PDFViewer
         config={{
           src: objectUrl,
-          theme: { preference: pdfTheme }
+          theme: { preference: pdfTheme },
+          zoom: {
+            defaultLevel: 'fit-width'
+          }
         }}
       />
     </div>
