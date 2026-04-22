@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import ePub, { Rendition } from "epubjs";
 import * as pdfjsLib from "pdfjs-dist";
 import { getBookOffline, saveBookOffline } from "../lib/offline";
-import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Settings, List, Loader2, Minus, Plus, Type, Palette, MousePointer2, Maximize2, Minimize2, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 // Set worker source for pdfjs - using unpkg for version 5.x
