@@ -54,8 +54,8 @@ function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void
   return (
     <header className="py-4 md:py-6 px-4 md:px-8 flex items-center justify-between">
       <Link to="/" className="flex items-center gap-2 group">
-        <div className="w-8 h-8 md:w-10 md:h-10 bg-[var(--primary-color)] rounded-lg md:rounded-xl flex items-center justify-center shadow-lg shadow-[var(--primary-color)]/20 group-hover:rotate-6 transition-transform">
-          <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-white" />
+        <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center group-hover:rotate-6 transition-transform">
+          <img src="/src/images/logo.svg" alt="BookHub Logo" className="w-full h-full" />
         </div>
         <span className="text-lg md:text-xl font-serif font-bold tracking-tight text-[var(--text-color)] transition-colors">墨香书阁</span>
       </Link>
