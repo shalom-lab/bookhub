@@ -9,6 +9,8 @@ import Toast from "./components/Toast";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import logo from "./images/logo.svg";
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -55,9 +57,9 @@ function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void
     <header className="py-4 md:py-6 px-4 md:px-8 flex items-center justify-between">
       <Link to="/" className="flex items-center gap-2 group">
         <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center group-hover:rotate-6 transition-transform">
-          <img src="/src/images/logo.svg" alt="BookHub Logo" className="w-full h-full" />
+          <img src={logo} alt="BookHub Logo" className="w-full h-full" />
         </div>
-        <span className="text-lg md:text-xl font-serif font-bold tracking-tight text-[var(--text-color)] transition-colors">墨香书阁</span>
+        <span className="text-lg md:text-xl font-serif font-bold tracking-tight text-[var(--text-color)] transition-colors">BookHub</span>
       </Link>
 
       <div className="flex items-center gap-4">
