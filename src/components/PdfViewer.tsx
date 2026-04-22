@@ -90,7 +90,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
 
       // 1. Restore progress on layout ready
       scroll.onLayoutReady((event) => {
-        if (event.documentId === 'active-doc' && event.isInitial) {
+        if (event.documentId === 'my-doc' && event.isInitial) {
           const savedProgress = localStorage.getItem(`pdf-progress-${bookUrl}`);
           if (savedProgress) {
             const pageNum = parseInt(savedProgress);
@@ -106,7 +106,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
 
       // 2. Save progress on page change
       unsubscribePageChange = scroll.onPageChange((event) => {
-        if (event.documentId === 'active-doc') {
+        if (event.documentId === 'my-doc') {
           localStorage.setItem(`pdf-progress-${bookUrl}`, event.pageNumber.toString());
         }
       });
@@ -183,14 +183,14 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
     <div className="w-full h-full flex flex-col bg-white">
       <PDFViewer
         ref={viewerRef}
+        theme={initialTheme}
         config={{
           documentManager: {
             initialDocuments: [{
               url: objectUrl,
-              documentId: 'active-doc'
+              documentId: 'my-doc'
             }]
           },
-          theme: initialTheme,
           zoom: {
             defaultZoomLevel: 1.0
           },
