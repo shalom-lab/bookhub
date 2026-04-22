@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { getBookOffline, saveBookOffline } from "../lib/offline";
-import { PDFViewer } from '@embedpdf/react-pdf-viewer';
+import { PDFViewer, PDFViewerRef } from '@embedpdf/react-pdf-viewer';
 import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
@@ -8,13 +8,81 @@ interface PdfViewerProps {
   theme?: 'light' | 'dark' | 'sepia' | 'green';
 }
 
+const THEME_CONFIGS = {
+  light: {
+    preference: 'light' as const,
+  },
+  dark: {
+    preference: 'dark' as const,
+  },
+  sepia: {
+    preference: 'light' as const,
+    light: {
+      background: {
+        app: "#FBF0D9",
+        surface: "#FBF0D9",
+        surfaceAlt: "#F2E2C4",
+        input: "#F2E2C4",
+      },
+      foreground: {
+        primary: "#5F4B32",
+        secondary: "#7A654D",
+      },
+      accent: {
+        primary: "#8B7E66",
+        primaryHover: "#7A654D",
+      },
+      border: {
+        default: "rgba(95, 75, 50, 0.1)",
+      }
+    }
+  },
+  green: {
+    preference: 'light' as const,
+    light: {
+      background: {
+        app: "#E1EAD8",
+        surface: "#E1EAD8",
+        surfaceAlt: "#D5E0CB",
+        input: "#D5E0CB",
+      },
+      foreground: {
+        primary: "#2C3E50",
+        secondary: "#3E5871",
+      },
+      accent: {
+        primary: "#4A6B8A",
+        primaryHover: "#3E5871",
+      },
+      border: {
+        default: "rgba(44, 62, 80, 0.1)",
+      }
+    }
+  }
+};
+
 export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const viewerRef = useRef<PDFViewerRef>(null);
 
-  // Map our themes to PDF viewer themes
-  const pdfTheme = theme === 'dark' ? 'dark' : 'light';
+  // Initial theme config
+  const initialTheme = THEME_CONFIGS[theme] || THEME_CONFIGS.light;
+
+  // Handle dynamic theme changes smoothly via Ref API
+  useEffect(() => {
+    if (viewerRef.current) {
+      const config = THEME_CONFIGS[theme] || THEME_CONFIGS.light;
+      // The component expects preference or a full theme object
+      // Based on docs, we can pass the preference or the full config
+      viewerRef.current.setTheme(config.preference);
+      // Wait, the docs say viewerRef.current?.setTheme(theme) where theme is 'light' | 'dark'
+      // If we have custom overrides, we might need to pass the whole config or it might only support 'light'/'dark' via setTheme.
+      // If it only supports 'light'/'dark' via setTheme, then for custom themes we might need to rely on prop updates.
+      // But let's try to just pass the preference for now and see.
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (!bookUrl) return;
@@ -25,30 +93,23 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
       setError(null);
       try {
         let blob: Blob;
-        
-        // 1. Try from IndexedDB
         const offlineBuffer = await getBookOffline(bookUrl);
         if (offlineBuffer) {
           blob = new Blob([offlineBuffer], { type: "application/pdf" });
         } else {
-          // 2. Otherwise download
           const response = await fetch(bookUrl);
           if (!response.ok) throw new Error(`PDF 下载失败: ${response.status}`);
           const buffer = await response.arrayBuffer();
-          // 3. Save to IndexedDB
           await saveBookOffline(bookUrl, buffer);
           blob = new Blob([buffer], { type: "application/pdf" });
         }
 
         if (!isMounted) return;
-
-        // 4. Create an Object URL
         const url = URL.createObjectURL(blob);
         setObjectUrl(url);
         setLoading(false);
       } catch (err: any) {
         if (!isMounted) return;
-        console.error("PDF Load Error:", err);
         setError(err.message || "无法加载 PDF 文件");
         setLoading(false);
       }
@@ -58,9 +119,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
 
     return () => {
       isMounted = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [bookUrl]);
 
@@ -84,11 +143,12 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-[calc(100vh-56px)] md:h-[calc(100vh-64px)] flex flex-col overflow-hidden bg-white">
+    <div className="w-full h-[calc(100vh-56px)] md:h-[calc(100vh-64px)] flex flex-col overflow-hidden">
       <PDFViewer
+        ref={viewerRef}
         config={{
           src: objectUrl,
-          theme: { preference: pdfTheme },
+          theme: initialTheme,
           zoom: {
             defaultLevel: 'fit-width'
           }
