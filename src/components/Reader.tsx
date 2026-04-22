@@ -33,6 +33,97 @@ const THEMES = {
   },
 };
 
+// Helper Components for PDF
+const PdfThumbnail = ({ pdf, pageNumber, isActive, onClick, theme }: any) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+    const renderThumbnail = async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const viewport = page.getViewport({ scale: 0.2 });
+        const canvas = canvasRef.current!;
+        const context = canvas.getContext("2d");
+        if (context) {
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await (page as any).render({ canvasContext: context, viewport }).promise;
+        }
+      } catch (e) {
+        console.error("Thumbnail render error", e);
+      }
+    };
+    renderThumbnail();
+  }, [pdf, pageNumber]);
+
+  return (
+    <div 
+      onClick={onClick}
+      className={`cursor-pointer transition-all p-1 rounded-lg border-2 ${
+        isActive ? 'border-[#8b7e66] scale-105 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'
+      }`}
+    >
+      <canvas 
+        ref={canvasRef} 
+        className="w-full h-auto rounded-sm bg-white"
+        style={{ 
+          filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                  theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                  theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+        }}
+      />
+      <div className="text-[8px] text-center mt-1 opacity-50 font-sans">{pageNumber}</div>
+    </div>
+  );
+};
+
+const PdfPage = ({ pdf, pageNumber, scale, fit, theme, containerWidth }: any) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+    const renderPage = async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        let targetScale = scale;
+        
+        if (fit === "width") {
+          targetScale = ((containerWidth - 60) / unscaledViewport.width) * scale;
+        }
+
+        const viewport = page.getViewport({ scale: targetScale });
+        const canvas = canvasRef.current!;
+        const context = canvas.getContext("2d");
+        if (context) {
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await (page as any).render({ canvasContext: context, viewport }).promise;
+        }
+      } catch (e) {
+        console.error("Page render error", e);
+      }
+    };
+    renderPage();
+  }, [pdf, pageNumber, scale, fit, containerWidth]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <canvas 
+        ref={canvasRef} 
+        className="shadow-xl bg-white max-w-full"
+        style={{ 
+          filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                  theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                  theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+        }}
+      />
+      <div className="mt-2 text-[10px] opacity-30 font-serif">PAGE {pageNumber}</div>
+    </div>
+  );
+};
+
 export default function Reader() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -68,6 +159,7 @@ export default function Reader() {
   const [pdfSpread, setPdfSpread] = useState<boolean>(() => 
     localStorage.getItem("reader_pdf_spread") === "true"
   );
+  const [showPdfThumbnails, setShowPdfThumbnails] = useState(true);
   
   const [isRendering, setIsRendering] = useState(false);
   const [epubPercentage, setEpubPercentage] = useState(0);
@@ -279,6 +371,8 @@ export default function Reader() {
     if (!pdf || !canvasRef.current) return;
 
     const renderPage = async () => {
+      if (flow === "scrolled") return;
+
       if (renderTaskRef.current) renderTaskRef.current.cancel();
       if (renderTaskRefRight.current) renderTaskRefRight.current.cancel();
 
@@ -287,15 +381,14 @@ export default function Reader() {
         const container = pdfContainerRef.current;
         if (!container) return;
 
-        // Reset scroll position
         container.scrollTo(0, 0);
 
-        const isDouble = pdfSpread && windowWidth > 1024 && pdfTotalPages > 1;
+        const isDouble = pdfSpread && windowWidth > 1200 && pdfTotalPages > 1;
         const page = await pdf.getPage(pdfPage);
         const unscaledViewport = page.getViewport({ scale: 1 });
         
         let targetScale = pdfScale;
-        const padding = 40;
+        const padding = 60;
         const availableWidth = isDouble ? (container.clientWidth / 2) - padding : container.clientWidth - padding;
 
         if (pdfFit === "width") {
@@ -318,7 +411,6 @@ export default function Reader() {
           await renderTask.promise;
         }
 
-        // Render second page if in double spread mode
         if (isDouble && pdfPage < pdfTotalPages && canvasRefRight.current) {
           const pageRight = await pdf.getPage(pdfPage + 1);
           const canvasRight = canvasRefRight.current;
@@ -341,7 +433,7 @@ export default function Reader() {
     };
 
     renderPage();
-  }, [pdf, pdfPage, pdfScale, pdfFit, pdfSpread, bookUrl, windowWidth]);
+  }, [pdf, pdfPage, pdfScale, pdfFit, pdfSpread, flow, bookUrl, windowWidth]);
 
   // PDF Navigation
   const pdfNext = React.useCallback(() => {
@@ -816,74 +908,378 @@ export default function Reader() {
                   <span className="hidden md:block text-[10px] text-[#8b7e66] font-serif opacity-0 group-hover:opacity-100 transition-opacity">上一页</span>
                 </button>
                 <button
-                  onClick={next}
-                  className="absolute right-0 top-0 bottom-0 w-[15%] md:w-auto md:h-auto md:top-1/2 md:-translate-y-1/2 flex flex-col items-center justify-center gap-2 group z-20"
-                >
-                  <div className="hidden md:flex p-3 md:p-4 bg-white/40 hover:bg-white/90 rounded-full transition-all shadow-sm group-hover:scale-110 border border-black/5">
-                    <ChevronRight className="w-6 h-6 md:w-8 md:h-8 text-[#4a4a4a]" />
-                  </div>
-                  <span className="hidden md:block text-[10px] text-[#8b7e66] font-serif opacity-0 group-hover:opacity-100 transition-opacity">下一页</span>
-                </button>
-              </>
-            )}
+          className="h-full bg-[#8b7e66] transition-all duration-300"
+          style={{ 
+            width: isPdf ? `${(pdfPage / pdfTotalPages) * 100}%` : `${epubPercentage}%`,
+            opacity: showControls ? 1 : 0.3
+          }}
+        />
+      </div>
 
+      <div className="flex-1 flex overflow-hidden pt-14">
+        {/* PDF Thumbnail Sidebar */}
+        {isPdf && showPdfThumbnails && (
+          <div 
+            className="hidden md:flex flex-col w-52 border-r overflow-y-auto p-3 gap-4 transition-colors shrink-0 scrollbar-hide"
+            style={{ 
+              backgroundColor: THEMES[theme].bg,
+              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            }}
+          >
+            {Array.from({ length: pdfTotalPages }).map((_, i) => (
+              <PdfThumbnail 
+                key={i} 
+                pdf={pdf} 
+                pageNumber={i + 1} 
+                isActive={pdfPage === i + 1}
+                onClick={() => setPdfPage(i + 1)}
+                theme={theme}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="flex-1 relative overflow-hidden flex flex-col">
+          <div className="flex-1 relative">
+            {!isPdf && (
+              <div ref={viewerRef} className="h-full w-full" />
+            )}
+            
             {isPdf ? (
               <div 
                 ref={pdfContainerRef}
-                className="w-full h-full flex flex-col items-center overflow-y-auto pt-20 pb-20 scrollbar-hide relative"
+                className="w-full h-full flex flex-col items-center overflow-y-auto pb-20 scrollbar-hide relative"
               >
                 {isRendering && (
                   <div className="absolute inset-0 flex items-center justify-center bg-transparent z-10">
                     <Loader2 className="w-8 h-8 animate-spin text-[#8b7e66] opacity-40" />
                   </div>
                 )}
-                <div className={`flex items-start justify-center gap-4 transition-opacity duration-300 ${isRendering ? 'opacity-50' : 'opacity-100'} ${pdfSpread && windowWidth > 1024 ? 'w-full px-10' : ''}`}>
-                  <canvas 
-                    ref={canvasRef} 
-                    className="shadow-2xl bg-white max-w-full" 
-                    style={{ 
-                      filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
-                              theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
-                              theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
-                    }}
-                  />
-                  {pdfSpread && windowWidth > 1024 && pdfPage < pdfTotalPages && (
-                    <canvas 
-                      ref={canvasRefRight} 
-                      className="shadow-2xl bg-white max-w-full" 
-                      style={{ 
-                        filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
-                                theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
-                                theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="mt-8 px-6 py-2 bg-[var(--primary-color)]/80 backdrop-blur-md text-white text-[10px] font-serif rounded-full z-30 shadow-lg tracking-widest">
-                  第 {pdfPage}{pdfSpread && windowWidth > 1024 && pdfPage < pdfTotalPages ? `-${pdfPage+1}` : ''} 页 / 共 {pdfTotalPages} 页
+                
+                {flow === "scrolled" ? (
+                  <div className="flex flex-col gap-8 py-8 items-center w-full">
+                    {Array.from({ length: pdfTotalPages }).map((_, i) => (
+                      <PdfPage 
+                        key={i} 
+                        pdf={pdf} 
+                        pageNumber={i + 1} 
+                        scale={pdfScale}
+                        fit={pdfFit}
+                        theme={theme}
+                        containerWidth={pdfContainerRef.current?.clientWidth || 800}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center min-h-full py-8">
+                    <div className={`flex items-start justify-center gap-6 transition-opacity duration-300 ${isRendering ? 'opacity-50' : 'opacity-100'} ${pdfSpread && windowWidth > 1200 ? 'w-full px-10' : ''}`}>
+                      <canvas 
+                        ref={canvasRef} 
+                        className="shadow-2xl bg-white max-w-full" 
+                        style={{ 
+                          filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                                  theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                                  theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+                        }}
+                      />
+                      {pdfSpread && windowWidth > 1200 && pdfPage < pdfTotalPages && (
+                        <canvas 
+                          ref={canvasRefRight} 
+                          className="shadow-2xl bg-white max-w-full" 
+                          style={{ 
+                            filter: theme === 'dark' ? 'invert(0.9) hue-rotate(180deg)' : 
+                                    theme === 'parchment' ? 'sepia(0.4) contrast(0.9)' : 
+                                    theme === 'green' ? 'sepia(0.1) hue-rotate(80deg) saturate(0.8)' : 'none'
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="fixed bottom-24 md:bottom-8 px-6 py-2 bg-[var(--primary-color)]/80 backdrop-blur-md text-white text-[10px] font-serif rounded-full z-30 shadow-lg tracking-widest transition-opacity duration-300 opacity-80 hover:opacity-100">
+                  第 {pdfPage}{pdfSpread && windowWidth > 1200 && pdfPage < pdfTotalPages && flow !== "scrolled" ? `-${pdfPage+1}` : ''} 页 / 共 {pdfTotalPages} 页
                 </div>
               </div>
-            ) : (
-              <div 
-                ref={viewerRef} 
-                className={`epub-viewer w-full h-full mx-auto px-4 md:px-16 ${flow === "scrolled" ? 'overflow-y-auto' : ''}`} 
-              />
-            )}
-
-            {/* Mobile Touch Zones */}
-            {flow === "paginated" && (
-              <div className="absolute inset-0 flex md:hidden z-10">
-                <div className="w-[30%] h-full" onClick={prev} />
-                <div className="w-[40%] h-full" onClick={() => {
-                  /* maybe toggle header/footer? */
-                }} />
-                <div className="w-[30%] h-full" onClick={next} />
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
+      {/* TOC Sidebar */}
+      <AnimatePresence>
+        {showToc && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowToc(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-full md:w-80 bg-white shadow-2xl z-50 flex flex-col p-6"
+              style={{ backgroundColor: THEMES[theme].bg, color: THEMES[theme].fg }}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-serif text-xl">目录</h3>
+                <button onClick={() => setShowToc(false)} className="p-2 hover:bg-black/5 rounded-full">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <ul className="space-y-1 flex-1 overflow-y-auto">
+                {toc.map((item) => (
+                  <li key={item.id || item.href}>
+                    <button
+                      onClick={async () => {
+                        if (item.isPdf) {
+                          if (pdf) {
+                            try {
+                              let dest = item.dest;
+                              if (typeof dest === 'string') {
+                                dest = await pdf.getDestination(dest);
+                              }
+                              if (Array.isArray(dest)) {
+                                const pageIndex = await pdf.getPageIndex(dest[0]);
+                                setPdfPage(pageIndex + 1);
+                              }
+                            } catch (e) {
+                              console.error("PDF Jump failed:", e);
+                            }
+                          }
+                        } else {
+                          renditionRef.current?.display(item.href);
+                        }
+                        if (window.innerWidth < 768) setShowToc(false);
+                      }}
+                      className="text-left text-base md:text-sm text-[#4a4a4a]/80 hover:text-[#8b7e66] hover:bg-[#fdfaf6] transition-all w-full py-3 md:py-2 px-3 rounded-lg"
+                      style={{ color: THEMES[theme].fg }}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+            />
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-x-0 bottom-0 md:absolute md:inset-auto md:right-4 md:top-4 w-full md:w-72 border-t md:border z-50 md:z-40 rounded-t-3xl md:rounded-2xl shadow-2xl p-6 space-y-8 md:!translate-y-0"
+              style={{ 
+                backgroundColor: THEMES[theme].bg, 
+                color: THEMES[theme].fg,
+                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg">阅读设置</h3>
+                <button 
+                  onClick={() => setShowSettings(false)} 
+                  className="p-2 hover:bg-black/5 rounded-full"
+                  style={{ color: THEMES[theme].fg }}
+                >
+                  <X className="w-5 h-5 md:w-4 md:h-4" />
+                </button>
+              </div>
+
+              {/* Font Size */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                  <Type className="w-3 h-3" />
+                  字体大小
+                </div>
+                <div className="flex items-center justify-between bg-[#fdfaf6] p-1 rounded-full border border-[#8b7e66]/10">
+                  <button 
+                    onClick={() => setFontSize(Math.max(50, fontSize - 10))}
+                    className="p-2 hover:bg-white rounded-full transition-colors shadow-sm"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm font-medium">{fontSize}%</span>
+                  <button 
+                    onClick={() => setFontSize(Math.min(200, fontSize + 10))}
+                    className="p-2 hover:bg-white rounded-full transition-colors shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Themes */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                  <Palette className="w-3 h-3" />
+                  阅读主题
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(THEMES).map(([key, value]) => (
+                    <button
+                      key={key}
+                      onClick={() => setTheme(key as keyof typeof THEMES)}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                        theme === key ? 'border-[#8b7e66] bg-[#fdfaf6] shadow-sm' : 'border-transparent hover:bg-[#fdfaf6]'
+                      }`}
+                    >
+                      <div 
+                        className="w-full h-8 rounded-md border border-black/5" 
+                        style={{ backgroundColor: value.bg }}
+                      />
+                      <span className="text-[10px] font-medium">{value.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PDF Settings */}
+              {isPdf ? (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      显示模式
+                    </div>
+                    <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                      <button
+                        onClick={() => setPdfFit("width")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          pdfFit === "width" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        适合宽度
+                      </button>
+                      <button
+                        onClick={() => setPdfFit("page")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          pdfFit === "page" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        适合页面
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <List className="w-3 h-3" />
+                      侧边缩略图
+                    </div>
+                    <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                      <button
+                        onClick={() => setShowPdfThumbnails(true)}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          showPdfThumbnails ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        显示
+                      </button>
+                      <button
+                        onClick={() => setShowPdfThumbnails(false)}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          !showPdfThumbnails ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        隐藏
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <BookOpen className="w-3 h-3" />
+                      页面布局
+                    </div>
+                    <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                      <button
+                        onClick={() => setPdfSpread(false)}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          !pdfSpread ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        单页
+                      </button>
+                      <button
+                        onClick={() => setPdfSpread(true)}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          pdfSpread ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        双页
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <Plus className="w-3 h-3" />
+                      缩放倍率
+                    </div>
+                    <div className="space-y-4 px-2">
+                      <input 
+                        type="range" 
+                        min="0.5" 
+                        max="3" 
+                        step="0.1" 
+                        value={pdfScale} 
+                        onChange={(e) => setPdfScale(parseFloat(e.target.value))}
+                        className="w-full accent-[#8b7e66]"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-[#8b7e66] uppercase tracking-wider font-medium">
+                      <MousePointer2 className="w-3 h-3" />
+                      翻页模式
+                    </div>
+                    <div className="flex bg-[#fdfaf6] p-1 rounded-xl border border-[#8b7e66]/10">
+                      <button
+                        onClick={() => setFlow("paginated")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          flow === "paginated" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        左右翻页
+                      </button>
+                      <button
+                        onClick={() => setFlow("scrolled")}
+                        className={`flex-1 py-2 text-xs rounded-lg transition-all ${
+                          flow === "scrolled" ? 'bg-white shadow-sm text-[#8b7e66]' : 'text-[#8b7e66]/40'
+                        }`}
+                      >
+                        垂直滚动
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Mobile Controls */}
       <AnimatePresence>
@@ -892,7 +1288,7 @@ export default function Reader() {
             initial={{ y: 60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 60, opacity: 0 }}
-            className="md:hidden h-16 backdrop-blur-md border-t flex items-center justify-around fixed bottom-0 left-0 right-0 z-40 transition-colors"
+            className="md:hidden h-16 backdrop-blur-md border-t flex items-center justify-around fixed bottom-0 left-0 right-0 z-40"
             style={{ 
               backgroundColor: `${THEMES[theme].bg}CC`, 
               borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
@@ -911,12 +1307,7 @@ export default function Reader() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Touch Toggle Area */}
-      <div 
-        className="fixed inset-x-0 top-1/4 bottom-1/4 z-0 pointer-events-auto md:w-1/2 md:left-1/4"
-        onClick={toggleControls}
-      />
+      
+      <div className="fixed inset-x-0 top-1/4 bottom-1/4 z-0 pointer-events-auto md:w-1/2 md:left-1/4" onClick={toggleControls} />
     </div>
   );
-}
