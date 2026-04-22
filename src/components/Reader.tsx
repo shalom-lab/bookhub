@@ -36,6 +36,13 @@ const THEMES = {
 // Helper Components for PDF
 const PdfThumbnail = ({ pdf, pageNumber, isActive, onClick, theme }: any) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isActive && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (!pdf || !canvasRef.current) return;
@@ -59,9 +66,10 @@ const PdfThumbnail = ({ pdf, pageNumber, isActive, onClick, theme }: any) => {
 
   return (
     <div 
+      ref={containerRef}
       onClick={onClick}
-      className={`cursor-pointer transition-all p-1 rounded-lg border-2 ${
-        isActive ? 'border-[#8b7e66] scale-105 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'
+      className={`cursor-pointer transition-all p-1 rounded-lg border-2 shrink-0 ${
+        isActive ? 'border-[#8b7e66] scale-105 shadow-md bg-black/5' : 'border-transparent opacity-60 hover:opacity-100'
       }`}
     >
       <canvas 
