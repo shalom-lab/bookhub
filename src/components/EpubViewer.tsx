@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import ePub, { Rendition } from "epubjs";
 import { getBookOffline, saveBookOffline } from "../lib/offline";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface EpubViewerProps {
   bookUrl: string;
@@ -126,5 +127,32 @@ export default function EpubViewer({
     }
   }, [theme, fontSize]);
 
-  return <div ref={viewerRef} className="h-full w-full" />;
+  return (
+    <div className="h-full w-full relative group">
+      <div ref={viewerRef} className="h-full w-full" />
+      
+      {/* 左右悬浮翻页按钮 */}
+      {flow === "paginated" && (
+        <>
+          <button
+            onClick={() => renditionRef.current?.prev()}
+            className="absolute left-0 top-0 bottom-0 w-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+          >
+            <div className="p-4 bg-black/10 hover:bg-black/20 rounded-full backdrop-blur-sm">
+              <ChevronLeft className="w-8 h-8 text-black/40" />
+            </div>
+          </button>
+          
+          <button
+            onClick={() => renditionRef.current?.next()}
+            className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+          >
+            <div className="p-4 bg-black/10 hover:bg-black/20 rounded-full backdrop-blur-sm">
+              <ChevronRight className="w-8 h-8 text-black/40" />
+            </div>
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
