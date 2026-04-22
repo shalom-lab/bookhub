@@ -203,7 +203,7 @@ export default function Reader() {
         
         {!loading && !error && bookUrl && (
           bookUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
-            <div className="flex-1 min-h-0">
+            <div className="absolute inset-0 z-20">
               <PdfViewer bookUrl={bookUrl} theme={theme} />
             </div>
           ) : (

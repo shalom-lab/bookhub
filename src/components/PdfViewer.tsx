@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getBookOffline, saveBookOffline } from "../lib/offline";
-import { PDFViewer, PDFViewerRef } from '@embedpdf/react-pdf-viewer';
+import { PDFViewer, PDFViewerRef, ZoomMode } from '@embedpdf/react-pdf-viewer';
 import { Loader2 } from "lucide-react";
 
 interface PdfViewerProps {
@@ -74,13 +74,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   useEffect(() => {
     if (viewerRef.current) {
       const config = THEME_CONFIGS[theme] || THEME_CONFIGS.light;
-      // The component expects preference or a full theme object
-      // Based on docs, we can pass the preference or the full config
       viewerRef.current.setTheme(config.preference);
-      // Wait, the docs say viewerRef.current?.setTheme(theme) where theme is 'light' | 'dark'
-      // If we have custom overrides, we might need to pass the whole config or it might only support 'light'/'dark' via setTheme.
-      // If it only supports 'light'/'dark' via setTheme, then for custom themes we might need to rely on prop updates.
-      // But let's try to just pass the preference for now and see.
     }
   }, [theme]);
 
@@ -143,15 +137,17 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div className="w-full h-[calc(100vh-56px)] md:h-[calc(100vh-64px)] flex flex-col overflow-hidden">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-white">
       <PDFViewer
         ref={viewerRef}
         config={{
           src: objectUrl,
           theme: initialTheme,
           zoom: {
-            defaultLevel: 'fit-width'
-          }
+            defaultZoomLevel: ZoomMode.FitWidth
+          },
+          // Simplify UI for a better reading experience
+          disabledCategories: ['annotation', 'form', 'redaction', 'insert']
         }}
       />
     </div>
