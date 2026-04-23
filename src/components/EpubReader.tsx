@@ -132,23 +132,47 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         {showSettings && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="absolute bottom-0 left-0 right-0 z-50 p-8 rounded-t-3xl shadow-2xl" style={{ backgroundColor: currentTheme.bg, color: currentTheme.fg }}>
-              <div className="flex justify-between mb-8 items-center"><h3 className="font-bold">阅读设置</h3><button onClick={() => setShowSettings(false)} className="p-2 hover:bg-black/5 rounded-full"><X /></button></div>
-              <div className="mb-8">
-                <h4 className="text-xs opacity-50 mb-3">字号调节</h4>
-                <div className="flex gap-4 items-center bg-black/5 p-2 rounded-2xl">
-                  <button onClick={() => setFontSize(Math.max(70, fontSize - 10))} className="p-2 hover:bg-black/5 rounded-lg"><Minus className="w-5 h-5" /></button>
-                  <span className="flex-1 text-center font-bold">{fontSize}%</span>
-                  <button onClick={() => setFontSize(Math.min(200, fontSize + 10))} className="p-2 hover:bg-black/5 rounded-lg"><Plus className="w-5 h-5" /></button>
+            <motion.div 
+              initial={{ y: "100%" }} 
+              animate={{ y: 0 }} 
+              exit={{ y: "100%" }} 
+              className="absolute bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:bottom-6 md:w-[450px] md:rounded-3xl z-50 p-6 rounded-t-2xl shadow-2xl border-t md:border transition-all duration-300" 
+              style={{ 
+                backgroundColor: currentTheme.bg, 
+                color: currentTheme.fg,
+                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+              }}
+            >
+              <div className="flex justify-between mb-5 items-center">
+                <h3 className="font-bold text-sm opacity-80 tracking-wide">阅读设置</h3>
+                <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-black/5 rounded-full transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                <h4 className="text-[10px] uppercase tracking-widest opacity-40 mb-2.5 ml-1">字号调节</h4>
+                <div className="flex gap-4 items-center bg-black/5 p-1.5 rounded-xl">
+                  <button onClick={() => setFontSize(Math.max(70, fontSize - 10))} className="p-2 hover:bg-black/10 rounded-lg transition-colors"><Minus className="w-4 h-4" /></button>
+                  <span className="flex-1 text-center font-bold text-sm">{fontSize}%</span>
+                  <button onClick={() => setFontSize(Math.min(200, fontSize + 10))} className="p-2 hover:bg-black/10 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
+
               <div>
-                <h4 className="text-xs opacity-50 mb-3">配色方案</h4>
+                <h4 className="text-[10px] uppercase tracking-widest opacity-40 mb-2.5 ml-1">配色方案</h4>
                 <div className="grid grid-cols-4 gap-4">
                   {Object.entries(THEMES).map(([key, value]) => (
-                    <button key={key} onClick={() => setTheme(key as any)} className={`flex flex-col items-center gap-2 transition-transform ${theme === key ? 'scale-110' : 'opacity-60'}`}>
-                      <div className={`w-10 h-10 rounded-full border-2 ${theme === key ? 'border-[var(--primary-color)]' : 'border-transparent'}`} style={{ backgroundColor: value.bg }} />
-                      <span className="text-[10px]">{value.name}</span>
+                    <button 
+                      key={key} 
+                      onClick={() => setTheme(key as any)} 
+                      className={`flex flex-col items-center gap-1.5 transition-all ${theme === key ? 'scale-105' : 'opacity-50 hover:opacity-100'}`}
+                    >
+                      <div 
+                        className={`w-9 h-9 rounded-full border-2 ${theme === key ? 'border-[var(--primary-color)] shadow-sm' : 'border-transparent'}`} 
+                        style={{ backgroundColor: value.bg }} 
+                      />
+                      <span className="text-[9px] font-medium">{value.name}</span>
                     </button>
                   ))}
                 </div>
