@@ -39,7 +39,6 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
 
   const initialTheme = THEME_CONFIGS[theme] || THEME_CONFIGS.light;
 
-  // 响应主题切换（点击顶部按钮时实时生效）
   useEffect(() => {
     if (viewerRef.current) {
       const config = THEME_CONFIGS[theme] || THEME_CONFIGS.light;
@@ -47,7 +46,6 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
     }
   }, [theme]);
 
-  // 下载 PDF
   useEffect(() => {
     if (!bookUrl) return;
     let isMounted = true;
@@ -55,6 +53,13 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
       setLoading(true);
       setError(null);
       try {
+        // 本地测试优化：如果是本地路径，直接使用 URL
+        if (bookUrl.startsWith('/') || bookUrl.startsWith('http://localhost') || bookUrl.startsWith('https://')) {
+          setObjectUrl(bookUrl);
+          setLoading(false);
+          return;
+        }
+
         let blob: Blob;
         const offlineBuffer = await getBookOffline(bookUrl);
         if (offlineBuffer) {
@@ -79,13 +84,15 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
     loadPdfNative();
     return () => {
       isMounted = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [bookUrl]);
 
   if (loading) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-[#fdfaf6]">
+      <div className="w-full h-screen flex flex-col items-center justify-center bg-[#fdfaf6]">
         <Loader2 className="w-8 h-8 animate-spin text-[#8b7e66] mb-4" />
         <p className="font-serif text-[#8b7e66]">正在准备 PDF...</p>
       </div>
@@ -94,7 +101,7 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-red-500 bg-[#fdfaf6]">
+      <div className="w-full h-screen flex items-center justify-center text-red-500 bg-[#fdfaf6]">
         {error}
       </div>
     );
@@ -103,17 +110,16 @@ export default function PdfViewer({ bookUrl, theme = 'light' }: PdfViewerProps) 
   if (!objectUrl) return null;
 
   return (
-    <div 
-      className="w-full flex flex-col overflow-hidden bg-white"
-      style={{ height: 'calc(100vh - 64px)' }}
-    >
+    // 容器占满全屏，移除所有边距
+    <div className="w-full h-screen overflow-hidden bg-white">
       <PDFViewer
+        key={objectUrl}
         ref={viewerRef}
         theme={initialTheme}
+        // 关键点：100% 高度
+        style={{ height: '100%', width: '100%' }}
         config={{
-          documentManager: {
-            initialDocuments: [{ url: objectUrl, documentId: 'my-doc' }]
-          },
+          src: objectUrl,
           zoom: { defaultZoomLevel: 1.0 },
           scroll: {
             defaultStrategy: ScrollStrategy.Vertical,

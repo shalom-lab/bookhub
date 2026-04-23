@@ -6,6 +6,7 @@ import Reader from "./components/Reader";
 import Uploader from "./components/Uploader";
 import Settings from "./components/Settings";
 import Toast from "./components/Toast";
+import PdfTest from "./components/PdfTest";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -17,9 +18,9 @@ function cn(...inputs: ClassValue[]) {
 
 function Navigation() {
   const location = useLocation();
-  
-  // Hide navigation in reader mode
-  if (location.pathname === "/reader") return null;
+
+  // Hide navigation in reader or pdftest mode
+  if (location.pathname === "/reader" || location.pathname === "/pdftest") return null;
 
   const navItems = [
     { path: "/", icon: Library, label: "书架" },
@@ -51,7 +52,7 @@ function Navigation() {
 
 function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void }) {
   const location = useLocation();
-  if (location.pathname === "/reader") return null;
+  if (location.pathname === "/reader" || location.pathname === "/pdftest") return null;
 
   return (
     <header className="py-4 md:py-6 px-4 md:px-8 flex items-center justify-between">
@@ -73,7 +74,7 @@ function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void
           href="https://github.com/shalom-lab/bookhub"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-[var(--accent-bg)] border border-[var(--primary-color)]/10 rounded-full text-[var(--primary-color)]/60 hover:text-[var(--primary-color)] hover:bg-[var(--card-bg)] hover:shadow-sm transition-all duration-300 group"
+          className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-[var(--accent-bg)] border border(--primary-color)/10 rounded-full text-[var(--primary-color)]/60 hover:text-[var(--primary-color)] hover:bg-[var(--card-bg)] hover:shadow-sm transition-all duration-300 group"
         >
           <Github className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:rotate-12 transition-transform" />
           <span className="hidden md:inline text-[10px] md:text-xs font-serif tracking-wider font-medium">GitHub</span>
@@ -83,8 +84,9 @@ function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void
   );
 }
 
-export default function App() {
+function AppContent() {
   const [theme, setTheme] = useState(() => localStorage.getItem("app_theme") || "light");
+  const location = useLocation();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -94,20 +96,26 @@ export default function App() {
   const toggleTheme = () => setTheme(prev => prev === "light" ? "dark" : "light");
 
   return (
+    <div className="min-h-screen flex flex-col transition-colors duration-300">
+      <Header theme={theme} toggleTheme={toggleTheme} />
+      <main className={cn("flex-1", (location.pathname !== "/reader" && location.pathname !== "/pdftest") && "pb-24")}>
+        <Routes>
+          <Route path="/" element={<BookShelf />} />
+          <Route path="/reader" element={<Reader />} />
+          <Route path="/upload" element={<Uploader />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </main>
+      <Navigation />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
     <Router basename={import.meta.env.BASE_URL}>
       <Toast />
-      <div className="min-h-screen flex flex-col transition-colors duration-300">
-        <Header theme={theme} toggleTheme={toggleTheme} />
-        <main className="flex-1 pb-24">
-          <Routes>
-            <Route path="/" element={<BookShelf />} />
-            <Route path="/reader" element={<Reader />} />
-            <Route path="/upload" element={<Uploader />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </main>
-        <Navigation />
-      </div>
+      <AppContent />
     </Router>
   );
 }
