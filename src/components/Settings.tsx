@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { GitHubConfig, saveGitHubConfig, getDeleteMode, saveDeleteMode, verifyGitHubConfig } from "../lib/github";
+import { GitHubConfig, saveGitHubConfig, verifyGitHubConfig } from "../lib/github";
 import { toast } from "../lib/toast";
-import { Settings as SettingsIcon, Key, User, Github, Save, CheckCircle, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Key, User, Github, Save, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Settings() {
@@ -10,7 +10,6 @@ export default function Settings() {
     owner: "",
     repo: "",
   });
-  const [deleteMode, setDeleteMode] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
@@ -19,7 +18,6 @@ export default function Settings() {
       owner: localStorage.getItem("gh-bookhub-owner") || "",
       repo: localStorage.getItem("gh-bookhub-repo") || "",
     });
-    setDeleteMode(getDeleteMode());
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -28,7 +26,6 @@ export default function Settings() {
     try {
       await verifyGitHubConfig(config);
       saveGitHubConfig(config);
-      saveDeleteMode(deleteMode);
       toast.success("配置校验通过并已保存");
     } catch (err: any) {
       toast.error(err.message || "由于未知原因未能通过校验");
@@ -98,32 +95,6 @@ export default function Settings() {
                   />
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <h2 className="text-sm font-serif text-[var(--primary-color)] border-b border-[var(--primary-color)]/10 pb-2">功能设置</h2>
-            <div className="flex items-center justify-between p-4 bg-[var(--accent-bg)] rounded-xl border border-[var(--primary-color)]/10">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                  <Trash2 className="w-5 h-5 text-red-500" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-[var(--text-color)]">开启删除模式</h3>
-                  <p className="text-[10px] text-[var(--primary-color)]/60">开启后，书架页面将显示删除按钮</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDeleteMode(!deleteMode)}
-                className={`w-12 h-6 rounded-full transition-colors relative ${deleteMode ? "bg-[var(--primary-color)]" : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-              >
-                <div
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${deleteMode ? "left-7" : "left-1"
-                    }`}
-                />
-              </button>
             </div>
           </div>
 

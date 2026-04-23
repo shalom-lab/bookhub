@@ -1,45 +1,51 @@
-# 墨香书阁 (Mo Xiang Shu Ge)
+# 墨香书阁 (BookHub)
 
-墨香书阁是一个基于 React 和 Web 技术的轻量级 EPUB / PDF 电子书阅读与管理系统。它的最大特色是**将 GitHub 仓库作为个人的“云端书库”**，实现在线存储、跨平台访问与沉浸式阅读。
+墨香书阁是一个基于 React 19 和 Web 技术的轻量级电子书阅读与管理系统。它的核心理念是**将 GitHub 仓库作为个人的“私有云端书库”**，实现数据永存、跨端访问与纯粹的沉浸式阅读体验。
 
-## ✨ 主要功能 (Features)
+## ✨ 核心特性 (Key Features)
 
-- **📚 多格式支持**：完美支持 EPUB 和 PDF 电子书，采用 `pdf.js` 深度集成渲染。
-- **🖼️ 自动封面解析**：上传时自动提取 EPUB 封面或 PDF 首页作为预览，并在 GitHub 仓库同步存储。
-- **🌙 全站主题切换**：支持深色模式与浅色模式，多种阅读主题（羊皮纸、护眼绿等）深度适配 PDF。
-- **⚡ 离线阅读 (PWA)**：自动缓存已读书籍至 IndexedDB，支持无网络环境下流畅阅读。
-- **🛠️ 书籍管理**：支持在线重命名（修改标题/分类）、批量选择与一键删除。
-- **🚀 零后端部署**：完全基于 GitHub API，您的数据永远属于您。
+- **📚 双格式卓越支持**
+  - **EPUB**: 基于 `epub.js`，提供精美的翻页效果、字号调节及多种护眼主题（羊皮纸、护眼绿、极夜黑）。
+  - **PDF**: 采用高性能渲染引擎，支持原生全屏模式、自适应缩放与侧边缩放导航，告别布局崩溃。
+- **🖼️ 智能封面系统**: 自动解析 EPUB 封面或 PDF 首页，让您的书架视觉效果一目了然。
+- **⚡ 极致离线体验**: 集成 IndexedDB 持久化存储，已读书籍自动缓存，支持无网络环境下流畅开启。
+- **🛠️ 现代化书籍管理**: 支持在线重命名标题、修改分类，配备强大的**批量选择与删除**系统。
+- **🌙 灵动主题**: 深度适配深色/浅色模式，交互动效优雅平滑。
+- **🚀 零后端架构**: 完全基于 GitHub API，无需服务器，您的书籍永远储存在您自己的私有仓库中。
 
-## 🛠️ 技术栈
+## 🛠️ 技术底座 (Tech Stack)
 
-- **框架**: React 19 + Vite 6
-- **样式**: Tailwind CSS v4 + Motion (动画)
-- **解析**: epub.js (EPUB) + pdfjs-dist (PDF)
-- **存储**: GitHub API (云端) + idb-keyval (IndexedDB)
-- **图标**: Lucide React
+- **核心**: [React 19](https://react.dev/) + [Vite 6](https://vitejs.dev/)
+- **样式与动画**: [Tailwind CSS v4](https://tailwindcss.com/) + [Motion](https://motion.dev/)
+- **解析引擎**: [epub.js](https://github.com/futurepress/epub.js/) + [@embedpdf/react-pdf-viewer](https://embedpdf.com/)
+- **数据存储**: [GitHub REST API](https://docs.github.com/rest) + [idb-keyval](https://github.com/jakearchibald/idb-keyval)
+- **图标库**: [Lucide React](https://lucide.dev/)
 
-## 🚀 快速开始配置
+## 🚀 快速上手指南
 
-1. **准备 GitHub 书库：**
-   - 在 GitHub 创建一个新仓库（例如 `my-bookshelf`）。
-   - 前往 [GitHub Settings -> Tokens](https://github.com/settings/tokens?type=beta) 生成一个具有对应仓库 **Read/Write** Content 权限的 **Fine-grained PAT**。
-2. **本地运行开发：**
-   ```bash
-   npm install
-   npm run dev
-   ```
-3. **系统配置：**
-   - 在浏览器中打开应用，点击底部导航栏进入 **“设置”** 页面。
-   - 将您的 **GitHub Token**、**GitHub 用户名**、**仓库名称** 填写完成并保存配置。
-4. **开启阅读：**
-   - 进入 **“上传”** 页面，选择 `.epub` 或 `.pdf` 格式文件并输入标题和分类进行上传。
-   - 前往首页的 **“我的书架”** 点击书籍即可开始阅读。
+### 1. 配置您的云端书库
+- **创建仓库**: 在 GitHub 创建一个新仓库（推荐设为 `Private`）。
+- **生成 Token**: 前往 [GitHub Tokens (Fine-grained)](https://github.com/settings/tokens?type=beta) 生成一个 PAT，确保拥有该仓库的 **Read and Write** access to contents 权限。
 
-## 🔐 存储说明 (Security & Privacy)
+### 2. 本地运行
+```bash
+git clone https://github.com/your-username/bookhub.git
+cd bookhub
+npm install
+npm run dev
+```
 
-本应用的所有配置均为**纯客户端存储**，Token 和仓库信息仅保存在您的浏览器本地 `localStorage` 中，不会上传到任何第三方服务器。书籍文件存储在您的私有 GitHub 仓库，缓存存储在您的本地 `IndexedDB`。
+### 3. 应用初始化
+- 打开应用，点击导航栏进入 **“设置”**。
+- 输入您的 **GitHub Token**、**用户名** 和 **仓库名** 并保存。
+- 校验通过后，即可在 **“上传”** 页面开始构建您的私人书架。
 
-## 许可
+## 🔐 安全与隐私 (Privacy)
 
-MIT License
+- **无中转服务器**: 所有 GitHub API 请求均由浏览器直接发出，不经过任何第三方服务器。
+- **本地存储**: 您的 Token 和个人配置仅保存在本地 `localStorage` 中。
+- **数据所有权**: 所有的书籍文件和元数据均保存在您的私有 GitHub 仓库中，除了您没人能访问。
+
+## ⚖️ 许可
+
+[MIT License](./LICENSE)
