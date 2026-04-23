@@ -28,22 +28,31 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
   const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem("reader_font_size") || "110", 10));
   const [rendition, setRendition] = useState<any>(null);
 
+  const [progress, setProgress] = useState<string>("");
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const offlineBuffer = await getBookOffline(bookUrl);
-        if (offlineBuffer) {
-          setBookData(offlineBuffer);
+        setProgress("正在读取缓存...");
+        const offlineBlob = await getBookOffline(bookUrl);
+        if (offlineBlob) {
+          setBookData(offlineBlob);
         } else {
+          setProgress("正在从网络获取...");
           const response = await fetch(bookUrl);
-          const buffer = await response.arrayBuffer();
-          await saveBookOffline(bookUrl, buffer);
-          setBookData(buffer);
+          if (!response.ok) throw new Error(`下载失败: ${response.statusText}`);
+          
+          const blob = await response.blob();
+          setProgress("正在存入本地...");
+          await saveBookOffline(bookUrl, blob);
+          setBookData(blob);
         }
         setLoading(false);
       } catch (err: any) {
-        setError(err.message);
+        console.error("EPUB Load Error:", err);
+        setError(err.message || "无法加载书籍");
         setLoading(false);
       }
     };
@@ -125,12 +134,16 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         <button onClick={() => setShowSettings(!showSettings)} style={{ color: currentTheme.fg }}><Settings /></button>
       </div>
 
-      <div className="flex-1 relative">
-        {loading && <div className="absolute inset-0 z-50 flex items-center justify-center"><Loader2 className="animate-spin" /></div>}
+      <div className="flex-1 relative" key={`${theme}-${fontSize}`}>
+        {loading && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-inherit gap-3">
+            <Loader2 className="w-8 h-8 animate-spin opacity-50" />
+            <p className="text-xs opacity-50 font-medium tracking-wider">{progress}</p>
+          </div>
+        )}
         {error && <div className="absolute inset-0 z-50 flex items-center justify-center text-red-500">{error}</div>}
         {!loading && bookData && (
           <ReactReader
-            key={`${theme}-${fontSize}`} // 增加 key 值，确保在重大主题切换时组件能感知更新
             url={bookData}
             location={location}
             locationChanged={(loc) => { setLocation(loc); localStorage.setItem(`read_pos_${bookUrl}`, String(loc)); }}

@@ -1,9 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBooks, BookFile, getGitHubConfig, deleteBook, uploadBook } from "../lib/github";
-import { getCachedBooksList } from "../lib/offline";
+import { getCachedBooksList, isUrlCached } from "../lib/offline";
 import { Book, Folder, Search, Loader2, Trash2, X, AlertTriangle, WifiOff, Edit, CheckSquare, Square } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+// 定义素雅的分类配色方案
+const CATEGORY_STYLES: Record<string, { bg: string, pattern: string, fg: string }> = {
+  "math": { bg: "#e2e8f0", fg: "#475569", pattern: "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.4) 10px, rgba(255,255,255,0.4) 20px)" },
+  "数学": { bg: "#e2e8f0", fg: "#475569", pattern: "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.4) 10px, rgba(255,255,255,0.4) 20px)" },
+  "文学": { bg: "#fce7f3", fg: "#9d174d", pattern: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)" },
+  "literature": { bg: "#fce7f3", fg: "#9d174d", pattern: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)" },
+  "诗词": { bg: "#fef3c7", fg: "#92400e", pattern: "repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(255,255,255,0.3) 5px, rgba(255,255,255,0.3) 10px)" },
+  "poetry": { bg: "#fef3c7", fg: "#92400e", pattern: "repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(255,255,255,0.3) 5px, rgba(255,255,255,0.3) 10px)" },
+  "计算机": { bg: "#dcfce7", fg: "#166534", pattern: "linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)" },
+  "cs": { bg: "#dcfce7", fg: "#166534", pattern: "linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)" },
+  "default": { bg: "#f3f4f6", fg: "#374151", pattern: "none" }
+};
+
+// 自动生成素雅背景色的函数 (用于保底)
+const getFallbackStyle = (str: string) => {
+  const hash = str.split("").reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+  const colors = [
+    { bg: "#f1f5f9", fg: "#64748b" }, // Slate
+    { bg: "#ecfdf5", fg: "#059669" }, // Emerald
+    { bg: "#eff6ff", fg: "#2563eb" }, // Blue
+    { bg: "#faf5ff", fg: "#7c3aed" }, // Purple
+    { bg: "#fff7ed", fg: "#ea580c" }, // Orange
+  ];
+  return { ...colors[hash % colors.length], pattern: "none" };
+};
 
 export default function BookShelf() {
   const [books, setBooks] = useState<BookFile[]>([]);
@@ -40,9 +66,7 @@ export default function BookShelf() {
     try {
       for (const path of selectedBooks) {
         const book = books.find(b => b.path === path);
-        if (book) {
-          await deleteBook(config, book.path, book.sha);
-        }
+        if (book) await deleteBook(config, book.path, book.sha);
       }
       setBooks(books.filter(b => !selectedBooks.includes(b.path)));
       setSelectedBooks([]);
@@ -114,7 +138,7 @@ export default function BookShelf() {
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
             onClick={() => { setIsSelectMode(!isSelectMode); setSelectedBooks([]); }}
-            className={`p-2 rounded-full transition-colors ${isSelectMode ? 'bg-[var(--primary-color)] text-white' : 'bg-[var(--accent-bg)] text-[var(--primary-color)] border border-[var(--primary-color)]/20'}`}
+            className={`p-2 rounded-full transition-colors ${isSelectMode ? 'bg-[var(--primary-color)] text-white shadow-lg' : 'bg-[var(--accent-bg)] text-[var(--primary-color)] border border-[var(--primary-color)]/20'}`}
             title="批量管理"
           >
             <CheckSquare className="w-4 h-4" />
@@ -144,49 +168,73 @@ export default function BookShelf() {
                 <Folder className="w-5 h-5 text-[var(--primary-color)]" />
                 <h2 className="text-xl font-serif text-[var(--text-color)]">{category}</h2>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 md:gap-10">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 sm:gap-8 md:gap-10">
                 {categoryBooks.map((book, index) => {
-                  const colors = ["bg-[#e8e4d9]", "bg-[#d9e2e8]", "bg-[#e8d9d9]", "bg-[#d9e8df]", "bg-[#e2d9e8]", "bg-[#e8e2d9]"];
-                  const colorIndex = book.title.length % colors.length;
-                  const bgColor = colors[colorIndex];
-
+                  // 大小写不敏感匹配
+                  const catKey = book.category.toLowerCase();
+                  const style = CATEGORY_STYLES[catKey] || getFallbackStyle(book.category);
+                  
                   return (
                     <motion.div key={book.path} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
                       <div className="group relative">
                         {isSelectMode ? (
                           <button onClick={() => toggleSelect(book.path)} className="block w-full text-left">
-                            <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20 ${selectedBooks.includes(book.path) ? 'ring-4 ring-[var(--primary-color)] scale-95' : ''}`}>
+                            <div 
+                              className={`aspect-[3/4] book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden transition-all duration-500 ${selectedBooks.includes(book.path) ? 'ring-4 ring-[var(--primary-color)] scale-95 shadow-xl' : 'hover:scale-105'}`}
+                              style={{ backgroundColor: style.bg }}
+                            >
+                              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: style.pattern, backgroundSize: '20px 20px' }} />
                               <div className="absolute top-2 right-2 z-40 bg-white rounded-full p-1 shadow-md">
                                 {selectedBooks.includes(book.path) ? <CheckSquare className="w-4 h-4 text-[var(--primary-color)]" /> : <Square className="w-4 h-4 text-gray-300" />}
                               </div>
                               <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">{book.title}</h3>
+                                <h3 className="text-sm font-serif font-bold leading-relaxed line-clamp-4 px-2 tracking-tight shadow-sm" style={{ color: style.fg }}>{book.title}</h3>
                               </div>
                             </div>
                           </button>
                         ) : (
                           <Link to={`/reader?url=${encodeURIComponent(book.download_url)}&title=${encodeURIComponent(book.title)}`} className="block">
-                            <div className={`aspect-[3/4] ${bgColor} book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden dark:bg-opacity-20`}>
-                              <div className="book-spine" /><div className="book-texture" />
+                            <div 
+                              className="aspect-[3/4] book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl group border border-black/5"
+                              style={{ backgroundColor: style.bg }}
+                            >
+                              {/* 纹理层 */}
+                              <div className="absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: style.pattern, backgroundSize: '30px 30px' }} />
+                              
+                              {/* 模拟书脊 */}
+                              <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-black/5 border-r border-black/5 z-20 shadow-inner" />
+                              <div className="absolute left-3.5 top-0 bottom-0 w-px bg-white/20 z-20" />
+
                               <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                <h3 className="text-sm font-serif font-bold text-[var(--text-color)] leading-relaxed line-clamp-4 px-2 tracking-tight">{book.title}</h3>
+                                <h3 className="text-sm font-serif font-bold leading-relaxed line-clamp-4 px-4 tracking-tight drop-shadow-sm" style={{ color: style.fg }}>
+                                  {book.title}
+                                </h3>
                               </div>
+                              
                               <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
-                                <div className="w-8 h-px bg-black/20" />
-                                <span className="text-[10px] uppercase tracking-widest text-[var(--primary-color)] font-medium">{book.category}</span>
+                                <div className="w-8 h-px bg-black/10" />
+                                <span className="text-[9px] uppercase tracking-[0.2em] font-extrabold opacity-50" style={{ color: style.fg }}>
+                                  {book.category}
+                                </span>
                               </div>
-                              {cachedUrls.includes(book.download_url) && (
-                                <div className="absolute top-3 left-3 z-30 bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/20"><WifiOff className="w-3 h-3 text-white" /></div>
+
+                              {isUrlCached(book.download_url, cachedUrls) && (
+                                <div className="absolute top-3 left-6 z-30 bg-black/10 backdrop-blur-sm rounded-full p-1 border border-white/20">
+                                  <WifiOff className="w-2.5 h-2.5 text-white" />
+                                </div>
                               )}
-                              <div className="absolute bottom-4 right-4 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-500 md:translate-y-2 md:group-hover:translate-y-0 z-20">
-                                <span className="text-[10px] tracking-[0.2em] font-serif bg-[var(--card-bg)]/90 backdrop-blur-md text-[var(--text-color)] px-4 py-1.5 rounded-full shadow-sm border border-black/5 font-bold">开始阅读</span>
+
+                              <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0 z-20">
+                                <span className="text-[9px] tracking-[0.2em] font-serif bg-white/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-black/5 font-extrabold text-gray-800">
+                                  OPEN BOOK
+                                </span>
                               </div>
                             </div>
                           </Link>
                         )}
                         {!isSelectMode && (
-                          <div className="absolute top-3 right-3 flex flex-col gap-2 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-all duration-300 z-20">
-                            <button onClick={() => { setEditingBook(book); setEditForm({ title: book.title, category: book.category }); }} className="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md text-[var(--primary-color)] rounded-full border border-[var(--primary-color)]/10 hover:bg-white transition-all shadow-sm"><Edit className="w-3.5 h-3.5" /></button>
+                          <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-30">
+                            <button onClick={() => { setEditingBook(book); setEditForm({ title: book.title, category: book.category }); }} className="w-8 h-8 flex items-center justify-center bg-white/95 backdrop-blur-md text-gray-600 rounded-full border border-black/5 hover:bg-white transition-all shadow-xl"><Edit className="w-3.5 h-3.5" /></button>
                           </div>
                         )}
                       </div>
@@ -199,12 +247,12 @@ export default function BookShelf() {
 
           <AnimatePresence>
             {isSelectMode && selectedBooks.length > 0 && (
-              <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[var(--card-bg)] border border-[var(--primary-color)]/20 px-6 py-4 rounded-2xl shadow-2xl z-40 flex items-center gap-8 backdrop-blur-xl">
-                <div className="flex flex-col"><span className="text-xs text-[var(--primary-color)] font-medium">已选择 {selectedBooks.length} 本书籍</span></div>
-                <div className="flex gap-2">
-                  <button onClick={() => setSelectedBooks([])} className="px-4 py-2 text-xs font-medium text-[var(--primary-color)] hover:bg-[var(--accent-bg)] rounded-lg transition-colors">取消选择</button>
-                  <button onClick={handleBatchDelete} disabled={isBatchDeleting} className="px-4 py-2 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2">
-                    {isBatchDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}批量删除
+              <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white/95 border border-black/10 px-8 py-4 rounded-3xl shadow-2xl z-50 flex items-center gap-8 backdrop-blur-xl">
+                <div className="flex flex-col"><span className="text-xs text-gray-500 font-medium">已选择 {selectedBooks.length} 本书籍</span></div>
+                <div className="flex gap-3">
+                  <button onClick={() => setSelectedBooks([])} className="px-5 py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors">取消</button>
+                  <button onClick={handleBatchDelete} disabled={isBatchDeleting} className="px-6 py-2 text-xs font-bold bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors flex items-center gap-2 shadow-lg shadow-red-200">
+                    {isBatchDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}确认删除
                   </button>
                 </div>
               </motion.div>
@@ -212,12 +260,12 @@ export default function BookShelf() {
             {editingBook && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingBook(null)} className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-[var(--card-bg)] rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-[var(--primary-color)]/10">
-                  <h3 className="text-xl font-serif text-[var(--text-color)] mb-6">编辑书籍信息</h3>
-                  <div className="space-y-4">
-                    <div className="space-y-2"><label className="text-xs font-medium text-[var(--primary-color)]">书名</label><input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full px-4 py-2 bg-[var(--accent-bg)] border border-[var(--primary-color)]/20 rounded-lg text-sm text-[var(--text-color)]" /></div>
-                    <div className="space-y-2"><label className="text-xs font-medium text-[var(--primary-color)]">分类</label><input type="text" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="w-full px-4 py-2 bg-[var(--accent-bg)] border border-[var(--primary-color)]/20 rounded-lg text-sm text-[var(--text-color)]" /></div>
-                    <div className="flex gap-3 pt-4"><button onClick={() => setEditingBook(null)} className="flex-1 py-2 bg-[var(--accent-bg)] text-[var(--primary-color)] rounded-lg text-sm font-medium">取消</button><button onClick={handleEditSave} className="flex-1 py-2 bg-[var(--primary-color)] text-white rounded-lg text-sm font-medium shadow-lg shadow-[var(--primary-color)]/20">保存</button></div>
+                <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-white/95 backdrop-blur-xl rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-black/5">
+                  <h3 className="text-xl font-serif mb-6 font-extrabold">编辑书籍</h3>
+                  <div className="space-y-5">
+                    <div className="space-y-2"><label className="text-[10px] uppercase tracking-widest font-extrabold opacity-30">书名</label><input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full px-4 py-3 bg-gray-50/50 border border-black/5 rounded-xl text-sm" /></div>
+                    <div className="space-y-2"><label className="text-[10px] uppercase tracking-widest font-extrabold opacity-30">分类</label><input type="text" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="w-full px-4 py-3 bg-gray-50/50 border border-black/5 rounded-xl text-sm" /></div>
+                    <div className="flex gap-3 pt-4"><button onClick={() => setEditingBook(null)} className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold">取消</button><button onClick={handleEditSave} className="flex-1 py-3 bg-black text-white rounded-xl text-sm font-bold shadow-lg shadow-black/20">保存修改</button></div>
                   </div>
                 </motion.div>
               </div>

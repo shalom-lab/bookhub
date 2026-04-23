@@ -6,7 +6,6 @@ import Reader from "./components/Reader";
 import Uploader from "./components/Uploader";
 import Settings from "./components/Settings";
 import Toast from "./components/Toast";
-import PdfTest from "./components/PdfTest";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -19,8 +18,8 @@ function cn(...inputs: ClassValue[]) {
 function Navigation() {
   const location = useLocation();
 
-  // Hide navigation in reader or pdftest mode
-  if (location.pathname === "/reader" || location.pathname === "/pdftest") return null;
+  // Hide navigation in reader mode
+  if (location.pathname === "/reader") return null;
 
   const navItems = [
     { path: "/", icon: Library, label: "书架" },
@@ -52,7 +51,7 @@ function Navigation() {
 
 function Header({ theme, toggleTheme }: { theme: string, toggleTheme: () => void }) {
   const location = useLocation();
-  if (location.pathname === "/reader" || location.pathname === "/pdftest") return null;
+  if (location.pathname === "/reader") return null;
 
   return (
     <header className="py-4 md:py-6 px-4 md:px-8 flex items-center justify-between">
@@ -98,7 +97,7 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300">
       <Header theme={theme} toggleTheme={toggleTheme} />
-      <main className={cn("flex-1", (location.pathname !== "/reader" && location.pathname !== "/pdftest") && "pb-24")}>
+      <main className={cn("flex-1", (location.pathname !== "/reader") && "pb-24")}>
         <Routes>
           <Route path="/" element={<BookShelf />} />
           <Route path="/reader" element={<Reader />} />
