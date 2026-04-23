@@ -91,6 +91,18 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
       backgroundColor: currentTheme.bg,
       transition: "background-color 0.3s ease" 
     },
+    tocArea: {
+      ...ReactReaderStyle.tocArea,
+      backgroundColor: currentTheme.bg,
+      color: currentTheme.fg,
+      borderRight: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+      transition: "all 0.3s ease"
+    },
+    tocAreaButton: {
+      ...ReactReaderStyle.tocAreaButton,
+      color: currentTheme.fg,
+      opacity: 0.6
+    },
     titleArea: { display: 'none' },
     arrow: {
       ...ReactReaderStyle.arrow,
