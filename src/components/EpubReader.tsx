@@ -62,13 +62,7 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         } else {
           setProgress("正在从网络获取...");
           
-          const token = localStorage.getItem("gh-bookhub-token");
-          const headers: HeadersInit = {};
-          if (token && bookUrl.includes("github")) {
-            headers["Authorization"] = `token ${token}`;
-          }
-
-          const response = await fetch(bookUrl, { signal, headers });
+          const response = await fetch(bookUrl, { signal });
           
           if (!isMounted) return;
           if (!response.ok) throw new Error(`下载失败: ${response.statusText} (${response.status})`);
