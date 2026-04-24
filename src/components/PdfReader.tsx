@@ -10,48 +10,93 @@ interface PdfReaderProps {
 export default function PdfReader({ bookUrl }: PdfReaderProps) {
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<string>("");
-  const [pdfData, setPdfData] = useState<string | Uint8Array | Blob | null>(null);
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    let currentObjectUrl: string | null = null;
+
+    const cleanup = () => {
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+        currentObjectUrl = null;
+      }
+    };
+
     const loadPdf = async () => {
+      if (!isMounted) return;
       setLoading(true);
       setError(null);
+      
+      const controller = new AbortController();
+      const signal = controller.signal;
+
       try {
         // 1. 尝试从本地 IndexedDB 获取
         setProgress("正在从本地缓存读取...");
         const offlineBlob = await getBookOffline(bookUrl);
         
+        if (!isMounted) return;
+
         if (offlineBlob) {
-          setPdfData(offlineBlob);
+          cleanup();
+          currentObjectUrl = URL.createObjectURL(offlineBlob);
+          setPdfDataUrl(currentObjectUrl);
           setProgress("");
         } else {
           // 2. 本地没有，则从网络下载
           setProgress("正在从网络下载文件...");
-          const response = await fetch(bookUrl);
           
-          if (!response.ok) throw new Error(`下载失败: ${response.statusText}`);
+          // 尝试获取 GitHub Token 以支持私有仓库
+          const token = localStorage.getItem("gh-bookhub-token");
+          const headers: HeadersInit = {};
+          if (token && bookUrl.includes("github")) {
+            headers["Authorization"] = `token ${token}`;
+          }
+
+          const response = await fetch(bookUrl, { signal, headers });
           
-          // 对于大文件，分块读取并显示进度（可选改进，这里先简单化）
+          if (!isMounted) return;
+          if (!response.ok) throw new Error(`下载失败: ${response.statusText} (${response.status})`);
+          
           const blob = await response.blob();
           
+          if (!isMounted) return;
           setProgress("正在保存到本地缓存...");
-          // 3. 存入本地 IndexedDB
+          
           await saveBookOffline(bookUrl, blob);
           
-          setPdfData(blob);
+          if (!isMounted) return;
+          cleanup();
+          currentObjectUrl = URL.createObjectURL(blob);
+          setPdfDataUrl(currentObjectUrl);
           setProgress("");
         }
       } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        if (!isMounted) return;
+        
         console.error("PDF Load Error:", err);
-        setError(err.message || "无法加载 PDF 文件");
-        // 如果出错且有原始 URL，尝试直接使用 URL
-        setPdfData(bookUrl);
+        // 如果出错且有原始 URL，尝试直接使用 URL，并清除错误状态让 Viewer 尝试加载
+        setPdfDataUrl(bookUrl);
+        setError(null); 
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
+
+      return controller;
     };
-    loadPdf();
+
+    const task = loadPdf();
+
+    return () => {
+      isMounted = false;
+      cleanup();
+      task.then(controller => controller?.abort());
+    };
   }, [bookUrl]);
 
   if (loading) {
@@ -66,7 +111,7 @@ export default function PdfReader({ bookUrl }: PdfReaderProps) {
     );
   }
 
-  if (error && !pdfData) {
+  if (error && !pdfDataUrl) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
         <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
@@ -86,7 +131,7 @@ export default function PdfReader({ bookUrl }: PdfReaderProps) {
     <div style={{ width: '100vw', height: '100vh', background: '#fff', overflow: 'hidden' }}>
       <PDFViewer
         config={{
-          src: pdfData || bookUrl,
+          src: pdfDataUrl || bookUrl,
           theme: { preference: 'light' },
           zoom: { defaultZoomLevel: 1.0 },
           scroll: { defaultStrategy: ScrollStrategy.Vertical }

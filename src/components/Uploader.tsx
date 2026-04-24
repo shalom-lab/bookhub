@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { uploadBook, getGitHubConfig } from "../lib/github";
-import { extractCover } from "../lib/covers";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Image as ImageIcon } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -24,7 +23,7 @@ export default function Uploader() {
       if (!title) {
         setTitle(selectedFile.name.replace(/\.(epub|pdf)$/i, ""));
       }
-      // Auto-fill category if empty (e.g., from filename prefix if exists)
+      // Auto-fill category if empty
       if (!category && selectedFile.name.includes("_")) {
         setCategory(selectedFile.name.split("_")[0]);
       }
@@ -41,7 +40,6 @@ export default function Uploader() {
     setError("");
 
     try {
-      // coverPreview is now always null
       const fileName = await uploadBook(config, file, title, category, null);
       setUploadedFileName(fileName);
       setStatus("success");

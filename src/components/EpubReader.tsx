@@ -21,7 +21,7 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bookData, setBookData] = useState<string | ArrayBuffer | null>(null);
+  const [bookDataUrl, setBookDataUrl] = useState<string | null>(null);
   const [location, setLocation] = useState<string | number>(localStorage.getItem(`read_pos_${bookUrl}`) || 0);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<keyof typeof THEMES>((localStorage.getItem("reader_theme") as any) || "light");
@@ -31,32 +31,78 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
   const [progress, setProgress] = useState<string>("");
 
   useEffect(() => {
+    let isMounted = true;
+    let currentObjectUrl: string | null = null;
+
+    const cleanup = () => {
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+        currentObjectUrl = null;
+      }
+    };
+
     const loadData = async () => {
+      if (!isMounted) return;
       setLoading(true);
       setError(null);
+
+      const controller = new AbortController();
+      const signal = controller.signal;
+
       try {
         setProgress("正在读取缓存...");
         const offlineBlob = await getBookOffline(bookUrl);
+        
+        if (!isMounted) return;
+
         if (offlineBlob) {
-          setBookData(offlineBlob);
+          cleanup();
+          currentObjectUrl = URL.createObjectURL(offlineBlob);
+          setBookDataUrl(currentObjectUrl);
         } else {
           setProgress("正在从网络获取...");
-          const response = await fetch(bookUrl);
-          if (!response.ok) throw new Error(`下载失败: ${response.statusText}`);
+          
+          const token = localStorage.getItem("gh-bookhub-token");
+          const headers: HeadersInit = {};
+          if (token && bookUrl.includes("github")) {
+            headers["Authorization"] = `token ${token}`;
+          }
+
+          const response = await fetch(bookUrl, { signal, headers });
+          
+          if (!isMounted) return;
+          if (!response.ok) throw new Error(`下载失败: ${response.statusText} (${response.status})`);
           
           const blob = await response.blob();
+          
+          if (!isMounted) return;
           setProgress("正在存入本地...");
           await saveBookOffline(bookUrl, blob);
-          setBookData(blob);
+          
+          if (!isMounted) return;
+          cleanup();
+          currentObjectUrl = URL.createObjectURL(blob);
+          setBookDataUrl(currentObjectUrl);
         }
-        setLoading(false);
       } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        if (!isMounted) return;
         console.error("EPUB Load Error:", err);
         setError(err.message || "无法加载书籍");
-        setLoading(false);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
+      return controller;
     };
-    loadData();
+    const task = loadData();
+
+    return () => {
+      isMounted = false;
+      cleanup();
+      task.then(controller => controller?.abort());
+    };
   }, [bookUrl]);
 
   // 改进的主题应用逻辑
@@ -142,9 +188,9 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
           </div>
         )}
         {error && <div className="absolute inset-0 z-50 flex items-center justify-center text-red-500">{error}</div>}
-        {!loading && bookData && (
+        {!loading && bookDataUrl && (
           <ReactReader
-            url={bookData}
+            url={bookDataUrl}
             location={location}
             locationChanged={(loc) => { setLocation(loc); localStorage.setItem(`read_pos_${bookUrl}`, String(loc)); }}
             readerStyles={readerStyles}

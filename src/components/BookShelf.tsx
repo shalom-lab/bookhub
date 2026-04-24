@@ -4,29 +4,68 @@ import { fetchBooks, BookFile, getGitHubConfig, deleteBook, uploadBook } from ".
 import { getCachedBooksList, isUrlCached } from "../lib/offline";
 import { Book, Folder, Search, Loader2, Trash2, X, AlertTriangle, WifiOff, Edit, CheckSquare, Square } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-// 定义素雅的分类配色方案
-const CATEGORY_STYLES: Record<string, { bg: string, pattern: string, fg: string }> = {
-  "math": { bg: "#e2e8f0", fg: "#475569", pattern: "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.4) 10px, rgba(255,255,255,0.4) 20px)" },
-  "数学": { bg: "#e2e8f0", fg: "#475569", pattern: "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.4) 10px, rgba(255,255,255,0.4) 20px)" },
-  "文学": { bg: "#fce7f3", fg: "#9d174d", pattern: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)" },
-  "literature": { bg: "#fce7f3", fg: "#9d174d", pattern: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)" },
-  "诗词": { bg: "#fef3c7", fg: "#92400e", pattern: "repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(255,255,255,0.3) 5px, rgba(255,255,255,0.3) 10px)" },
-  "poetry": { bg: "#fef3c7", fg: "#92400e", pattern: "repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(255,255,255,0.3) 5px, rgba(255,255,255,0.3) 10px)" },
-  "计算机": { bg: "#dcfce7", fg: "#166534", pattern: "linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)" },
-  "cs": { bg: "#dcfce7", fg: "#166534", pattern: "linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)" },
-  "default": { bg: "#f3f4f6", fg: "#374151", pattern: "none" }
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// 定义精致的分类配色与设计方案 (拟真纸质书风格)
+const CATEGORY_STYLES: Record<string, { bg: string, pattern: string, fg: string, accent: string }> = {
+  "math": { 
+    bg: "#2c3e50", 
+    fg: "#ecf0f1", 
+    accent: "rgba(255,255,255,0.1)",
+    pattern: "repeating-linear-gradient(45deg, transparent, transparent 15px, rgba(255,255,255,0.05) 15px, rgba(255,255,255,0.05) 30px)" 
+  },
+  "数学": { 
+    bg: "#2c3e50", 
+    fg: "#ecf0f1", 
+    accent: "rgba(255,255,255,0.1)",
+    pattern: "repeating-linear-gradient(45deg, transparent, transparent 15px, rgba(255,255,255,0.05) 15px, rgba(255,255,255,0.05) 30px)" 
+  },
+  "文学": { 
+    bg: "#8e44ad", 
+    fg: "#ffffff", 
+    accent: "rgba(255,255,255,0.2)",
+    pattern: "radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)" 
+  },
+  "literature": { 
+    bg: "#8e44ad", 
+    fg: "#ffffff", 
+    accent: "rgba(255,255,255,0.2)",
+    pattern: "radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)" 
+  },
+  "计算机": { 
+    bg: "#27ae60", 
+    fg: "#ffffff", 
+    accent: "rgba(255,255,255,0.15)",
+    pattern: "linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)" 
+  },
+  "cs": { 
+    bg: "#27ae60", 
+    fg: "#ffffff", 
+    accent: "rgba(255,255,255,0.15)",
+    pattern: "linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)" 
+  },
+  "default": { 
+    bg: "#7f8c8d", 
+    fg: "#ffffff", 
+    accent: "rgba(255,255,255,0.1)",
+    pattern: "none" 
+  }
 };
 
-// 自动生成素雅背景色的函数 (用于保底)
+// 自动生成高质感背景色的函数
 const getFallbackStyle = (str: string) => {
   const hash = str.split("").reduce((acc, char) => char.charCodeAt(0) + acc, 0);
   const colors = [
-    { bg: "#f1f5f9", fg: "#64748b" }, // Slate
-    { bg: "#ecfdf5", fg: "#059669" }, // Emerald
-    { bg: "#eff6ff", fg: "#2563eb" }, // Blue
-    { bg: "#faf5ff", fg: "#7c3aed" }, // Purple
-    { bg: "#fff7ed", fg: "#ea580c" }, // Orange
+    { bg: "#34495e", fg: "#ffffff", accent: "rgba(255,255,255,0.1)" }, // Wet Asphalt
+    { bg: "#16a085", fg: "#ffffff", accent: "rgba(255,255,255,0.1)" }, // Green Sea
+    { bg: "#d35400", fg: "#ffffff", accent: "rgba(255,255,255,0.1)" }, // Pumpkin
+    { bg: "#2980b9", fg: "#ffffff", accent: "rgba(255,255,255,0.1)" }, // Belize Hole
+    { bg: "#c0392b", fg: "#ffffff", accent: "rgba(255,255,255,0.1)" }, // Pomegranate
   ];
   return { ...colors[hash % colors.length], pattern: "none" };
 };
@@ -195,40 +234,67 @@ export default function BookShelf() {
                         ) : (
                           <Link to={`/reader?url=${encodeURIComponent(book.download_url)}&title=${encodeURIComponent(book.title)}`} className="block">
                             <div 
-                              className="aspect-[3/4] book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl group border border-black/5"
+                              className="aspect-[3/4] book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl group border border-black/5 rounded-r-md"
                               style={{ backgroundColor: style.bg }}
                             >
-                              {/* 纹理层 */}
-                              <div className="absolute inset-0 opacity-[0.2] mix-blend-multiply" style={{ backgroundImage: style.pattern, backgroundSize: '30px 30px' }} />
-                              
-                              {/* 模拟书脊 */}
-                              <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-black/5 border-r border-black/5 z-20 shadow-inner" />
-                              <div className="absolute left-3.5 top-0 bottom-0 w-px bg-white/20 z-20" />
+                              {/* 封面图片 (如果存在) */}
+                              {book.cover_url && (
+                                <div className="absolute inset-0 z-0">
+                                  <img src={book.cover_url} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/30" /> 
+                                </div>
+                              )}
 
-                              <div className="flex-1 flex flex-col items-center justify-center py-4 z-10">
-                                <h3 className="text-sm font-serif font-bold leading-relaxed line-clamp-4 px-4 tracking-tight drop-shadow-sm" style={{ color: style.fg }}>
+                              {/* 纹理与装饰层 */}
+                              {!book.cover_url && (
+                                <>
+                                  <div className="absolute inset-0 opacity-[0.3] mix-blend-overlay" style={{ backgroundImage: style.pattern }} />
+                                  <div className="absolute top-8 left-8 right-8 bottom-8 border border-white/10 pointer-events-none" />
+                                  <div className="absolute top-10 left-10 right-10 bottom-10 border border-white/5 pointer-events-none" />
+                                </>
+                              )}
+                              
+                              {/* 模拟书脊与装订线 */}
+                              <div className="absolute left-0 top-0 bottom-0 w-4 bg-black/20 border-r border-white/5 z-20 shadow-inner" />
+                              <div className="absolute left-4 top-0 bottom-0 w-[2px] bg-white/10 z-20" />
+                              <div className="absolute left-1 top-0 bottom-0 w-px bg-white/5 z-20" />
+
+                              <div className="flex-1 flex flex-col items-center justify-center py-6 z-10 w-full">
+                                <div className="mb-4 opacity-30 transform scale-75">
+                                  <Book className="w-6 h-6" style={{ color: book.cover_url ? '#fff' : style.fg }} />
+                                </div>
+                                <h3 className={cn(
+                                  "text-sm md:text-base font-serif font-bold leading-relaxed line-clamp-4 px-4 tracking-tight drop-shadow-lg",
+                                  (book.cover_url || style.fg === '#ffffff' || style.fg === '#ecf0f1') ? "text-white" : ""
+                                )} style={{ color: (book.cover_url || style.fg === '#ffffff' || style.fg === '#ecf0f1') ? undefined : style.fg }}>
                                   {book.title}
                                 </h3>
                               </div>
                               
-                              <div className="w-full flex flex-col items-center gap-2 mb-4 z-10">
-                                <div className="w-8 h-px bg-black/10" />
-                                <span className="text-[9px] uppercase tracking-[0.2em] font-extrabold opacity-50" style={{ color: style.fg }}>
+                              <div className="w-full flex flex-col items-center gap-3 mb-4 z-10">
+                                <div className={cn("w-12 h-[1px]", (book.cover_url || style.fg === '#ffffff') ? "bg-white/30" : "bg-black/10")} />
+                                <div 
+                                  className="px-3 py-1 rounded-sm text-[8px] uppercase tracking-[0.25em] font-black backdrop-blur-sm"
+                                  style={{ backgroundColor: style.accent, color: (book.cover_url || style.fg === '#ffffff') ? '#fff' : style.fg }}
+                                >
                                   {book.category}
-                                </span>
+                                </div>
                               </div>
 
                               {isUrlCached(book.download_url, cachedUrls) && (
-                                <div className="absolute top-3 left-6 z-30 bg-black/10 backdrop-blur-sm rounded-full p-1 border border-white/20">
+                                <div className="absolute top-4 left-7 z-30 bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/10">
                                   <WifiOff className="w-2.5 h-2.5 text-white" />
                                 </div>
                               )}
 
                               <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0 z-20">
-                                <span className="text-[9px] tracking-[0.2em] font-serif bg-white/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-black/5 font-extrabold text-gray-800">
-                                  OPEN BOOK
-                                </span>
+                                <div className="text-[8px] tracking-[0.3em] font-serif bg-white text-black px-4 py-2 rounded-sm shadow-2xl font-black uppercase">
+                                  Read Now
+                                </div>
                               </div>
+
+                              {/* 页面边缘感 */}
+                              <div className="absolute right-0 top-0 bottom-0 w-px bg-white/10" />
                             </div>
                           </Link>
                         )}
