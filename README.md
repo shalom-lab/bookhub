@@ -46,6 +46,29 @@ npm run dev
 - **本地存储**: 您的 Token 和个人配置仅保存在本地 `localStorage` 中。
 - **数据所有权**: 所有的书籍文件和元数据均保存在您的私有 GitHub 仓库中，除了您没人能访问。
 
+## 💾 离线缓存与存储逻辑 (Caching Logic)
+
+为了实现无缝的离线阅读体验，BookHub 采用了多层缓存策略：
+
+### 1. 书籍二进制数据 (IndexedDB)
+*   **技术**: 使用 `idb-keyval` 操作浏览器 IndexedDB。
+*   **存储内容**: 主要是 **EPUB** 文件（PDF 目前采用直接 URL 加载以优化内存）。
+*   **键值规范**: 缓存键为 `book_${normalizedUrl}`，其中 URL 会被剔除动态查询参数（如 Token），确保缓存命中的稳定性。
+*   **管理**: 用户可以在“设置”页面手动清空所有书籍缓存。
+
+### 2. PWA 资源缓存 (Service Worker)
+*   **技术**: `vite-plugin-pwa` + `Workbox`。
+*   **预缓存**: 应用运行所需的 HTML、JS、CSS 和 PDF 渲染引擎 (WASM)。
+*   **运行时缓存**: 
+    *   **GitHub API**: 强制 **NetworkOnly**（不缓存），保护 Token 安全，防止数据过时。
+    *   **CDN 内容**: 针对 `raw.githubusercontent.com` 采用 **CacheFirst** 策略。
+*   **注意**: 请勿手动在 `fetch` 请求中添加 `Authorization` Header，这会触发 CORS 预检导致 CDN 访问失败。
+
+### 3. 应用状态 (LocalStorage)
+*   **GitHub 配置**: Token、用户名和仓库名。
+*   **阅读位置**: 每本书的最后阅读进度 (`read_pos_${url}`)。
+*   **界面偏好**: 主题模式（深色/浅色）、阅读器字号与背景。
+
 ## ⚖️ 许可
 
 [MIT License](./LICENSE)
