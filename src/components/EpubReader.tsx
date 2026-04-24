@@ -185,10 +185,18 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         {!loading && bookDataUrl && (
           <ReactReader
             url={bookDataUrl}
+            title={bookTitle}
             location={location}
-            locationChanged={(loc) => { setLocation(loc); localStorage.setItem(`read_pos_${bookUrl}`, String(loc)); }}
+            locationChanged={(loc) => { 
+              setLocation(loc); 
+              localStorage.setItem(`read_pos_${bookUrl}`, String(loc)); 
+            }}
             readerStyles={readerStyles}
             getRendition={(rend) => setRendition(rend)}
+            epubOptions={{
+              openAs: 'epub',
+              allowScriptedContent: true
+            }}
           />
         )}
       </div>

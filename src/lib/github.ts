@@ -103,7 +103,6 @@ export interface BookFile {
   download_url: string;
   category: string;
   title: string;
-  cover_url?: string;
 }
 
 export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
@@ -118,21 +117,6 @@ export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
     const contents = data as any[];
     const bookFiles = contents.filter((file: any) => file.name.endsWith(".epub") || file.name.endsWith(".pdf"));
     
-    // Try to get covers
-    let coverFiles: any[] = [];
-    try {
-      const { data: coverData } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
-        owner: config.owner,
-        repo: config.repo,
-        path: "cover",
-      });
-      if (Array.isArray(coverData)) {
-        coverFiles = coverData;
-      }
-    } catch (e) {
-      // cover folder might not exist
-    }
-
     return bookFiles.map((file: any) => {
       const isEpub = file.name.endsWith(".epub");
       const extension = isEpub ? ".epub" : ".pdf";
@@ -140,8 +124,6 @@ export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
       const [category, ...titleParts] = baseName.split("_");
       const title = titleParts.join("_") || category;
       
-      const coverFile = coverFiles.find(f => f.name === `${baseName}.jpg`);
-
       return {
         name: file.name,
         path: file.path,
@@ -149,7 +131,6 @@ export const fetchBooks = async (config: GitHubConfig): Promise<BookFile[]> => {
         download_url: file.download_url,
         category: titleParts.length > 0 ? category : "未分类",
         title: title,
-        cover_url: coverFile?.download_url,
       };
     });
   } catch (error) {
@@ -162,8 +143,7 @@ export const uploadBook = async (
   config: GitHubConfig,
   file: File,
   title: string,
-  category: string,
-  coverBase64?: string | null
+  category: string
 ): Promise<string> => {
   const octokit = getOctokit(config.token);
   const reader = new FileReader();
@@ -199,31 +179,6 @@ export const uploadBook = async (
           content: content,
           sha: sha,
         });
-
-        // Upload cover if provided
-        if (coverBase64) {
-          const coverContent = coverBase64.split(",")[1];
-          const coverPath = `cover/${category}_${title}.jpg`;
-          
-          let coverSha: string | undefined;
-          try {
-            const { data: cData } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
-              owner: config.owner,
-              repo: config.repo,
-              path: coverPath,
-            });
-            if (!Array.isArray(cData)) coverSha = cData.sha;
-          } catch (e) {}
-
-          await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
-            owner: config.owner,
-            repo: config.repo,
-            path: coverPath,
-            message: `${coverSha ? "Update" : "Upload"} cover: ${category}_${title}.jpg`,
-            content: coverContent,
-            sha: coverSha,
-          });
-        }
 
         resolve(fileName);
       } catch (error) {

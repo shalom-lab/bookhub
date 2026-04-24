@@ -237,22 +237,10 @@ export default function BookShelf() {
                               className="aspect-[3/4] book-card flex flex-col items-center justify-between p-6 text-center relative overflow-hidden transition-all duration-500 hover:scale-105 hover:shadow-2xl group border border-black/5 rounded-r-md"
                               style={{ backgroundColor: style.bg }}
                             >
-                              {/* 封面图片 (如果存在) */}
-                              {book.cover_url && (
-                                <div className="absolute inset-0 z-0">
-                                  <img src={book.cover_url} alt="" className="w-full h-full object-cover" />
-                                  <div className="absolute inset-0 bg-black/30" /> 
-                                </div>
-                              )}
-
                               {/* 纹理与装饰层 */}
-                              {!book.cover_url && (
-                                <>
-                                  <div className="absolute inset-0 opacity-[0.3] mix-blend-overlay" style={{ backgroundImage: style.pattern }} />
-                                  <div className="absolute top-8 left-8 right-8 bottom-8 border border-white/10 pointer-events-none" />
-                                  <div className="absolute top-10 left-10 right-10 bottom-10 border border-white/5 pointer-events-none" />
-                                </>
-                              )}
+                              <div className="absolute inset-0 opacity-[0.3] mix-blend-overlay" style={{ backgroundImage: style.pattern }} />
+                              <div className="absolute top-8 left-8 right-8 bottom-8 border border-white/10 pointer-events-none" />
+                              <div className="absolute top-10 left-10 right-10 bottom-10 border border-white/5 pointer-events-none" />
                               
                               {/* 模拟书脊与装订线 */}
                               <div className="absolute left-0 top-0 bottom-0 w-4 bg-black/20 border-r border-white/5 z-20 shadow-inner" />
@@ -261,21 +249,21 @@ export default function BookShelf() {
 
                               <div className="flex-1 flex flex-col items-center justify-center py-6 z-10 w-full">
                                 <div className="mb-4 opacity-30 transform scale-75">
-                                  <Book className="w-6 h-6" style={{ color: book.cover_url ? '#fff' : style.fg }} />
+                                  <Book className="w-6 h-6" style={{ color: style.fg }} />
                                 </div>
                                 <h3 className={cn(
                                   "text-sm md:text-base font-serif font-bold leading-relaxed line-clamp-4 px-4 tracking-tight drop-shadow-lg",
-                                  (book.cover_url || style.fg === '#ffffff' || style.fg === '#ecf0f1') ? "text-white" : ""
-                                )} style={{ color: (book.cover_url || style.fg === '#ffffff' || style.fg === '#ecf0f1') ? undefined : style.fg }}>
+                                  (style.fg === '#ffffff' || style.fg === '#ecf0f1') ? "text-white" : ""
+                                )} style={{ color: (style.fg === '#ffffff' || style.fg === '#ecf0f1') ? undefined : style.fg }}>
                                   {book.title}
                                 </h3>
                               </div>
                               
                               <div className="w-full flex flex-col items-center gap-3 mb-4 z-10">
-                                <div className={cn("w-12 h-[1px]", (book.cover_url || style.fg === '#ffffff') ? "bg-white/30" : "bg-black/10")} />
+                                <div className={cn("w-12 h-[1px]", (style.fg === '#ffffff') ? "bg-white/30" : "bg-black/10")} />
                                 <div 
                                   className="px-3 py-1 rounded-sm text-[8px] uppercase tracking-[0.25em] font-black backdrop-blur-sm"
-                                  style={{ backgroundColor: style.accent, color: (book.cover_url || style.fg === '#ffffff') ? '#fff' : style.fg }}
+                                  style={{ backgroundColor: style.accent, color: (style.fg === '#ffffff') ? '#fff' : style.fg }}
                                 >
                                   {book.category}
                                 </div>
