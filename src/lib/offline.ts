@@ -66,3 +66,17 @@ export async function getCachedBooksList(): Promise<string[]> {
 export function isUrlCached(url: string, cachedList: string[]): boolean {
   return cachedList.includes(normalizeUrl(url));
 }
+
+export async function clearAllBooksOffline() {
+  try {
+    const allKeys = await keys();
+    const bookKeys = allKeys.filter((k) => typeof k === 'string' && k.startsWith('book_'));
+    for (const key of bookKeys) {
+      await del(key);
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to clear all books offline', error);
+    return false;
+  }
+}
