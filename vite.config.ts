@@ -35,6 +35,8 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // 这里的配置解决 404 路由问题
           navigateFallback: '/bookhub/index.html',
+          // 解决 WASM 文件过大导致构建失败的问题 (默认 2MB -> 10MB)
+          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           // 排除敏感信息请求缓存
           runtimeCaching: [
             {
@@ -56,6 +58,20 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          // 代码拆分优化，解决 Chunk 大小警告
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-pdf': ['pdfjs-dist'],
+            'vendor-epub': ['epubjs'],
+            'vendor-ui': ['lucide-react', 'motion/react', 'clsx', 'tailwind-merge'],
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1000, // 提高报警阈值到 1MB
+    },
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
