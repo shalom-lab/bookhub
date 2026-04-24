@@ -21,7 +21,7 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bookDataUrl, setBookDataUrl] = useState<string | null>(null);
+  const [bookData, setBookData] = useState<ArrayBuffer | null>(null);
   const [location, setLocation] = useState<string | number>(localStorage.getItem(`read_pos_${bookUrl}`) || 0);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<keyof typeof THEMES>((localStorage.getItem("reader_theme") as any) || "light");
@@ -32,14 +32,6 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
 
   useEffect(() => {
     let isMounted = true;
-    let currentObjectUrl: string | null = null;
-
-    const cleanup = () => {
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-        currentObjectUrl = null;
-      }
-    };
 
     const loadData = async () => {
       if (!isMounted) return;
@@ -56,9 +48,9 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         if (!isMounted) return;
 
         if (offlineBlob) {
-          cleanup();
-          currentObjectUrl = URL.createObjectURL(offlineBlob);
-          setBookDataUrl(currentObjectUrl);
+          const buffer = await offlineBlob.arrayBuffer();
+          if (!isMounted) return;
+          setBookData(buffer);
         } else {
           setProgress("正在从网络获取...");
           
@@ -74,9 +66,9 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
           await saveBookOffline(bookUrl, blob);
           
           if (!isMounted) return;
-          cleanup();
-          currentObjectUrl = URL.createObjectURL(blob);
-          setBookDataUrl(currentObjectUrl);
+          const buffer = await blob.arrayBuffer();
+          if (!isMounted) return;
+          setBookData(buffer);
         }
       } catch (err: any) {
         if (err.name === 'AbortError') return;
@@ -94,7 +86,6 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
 
     return () => {
       isMounted = false;
-      cleanup();
       task.then(controller => controller?.abort());
     };
   }, [bookUrl]);
@@ -182,9 +173,9 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
           </div>
         )}
         {error && <div className="absolute inset-0 z-50 flex items-center justify-center text-red-500">{error}</div>}
-        {!loading && bookDataUrl && (
+        {!loading && bookData && (
           <ReactReader
-            url={bookDataUrl}
+            url={bookData}
             title={bookTitle}
             location={location}
             locationChanged={(loc) => { 
@@ -193,10 +184,6 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
             }}
             readerStyles={readerStyles}
             getRendition={(rend) => setRendition(rend)}
-            epubOptions={{
-              openAs: 'epub',
-              allowScriptedContent: true
-            }}
           />
         )}
       </div>
