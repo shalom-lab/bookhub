@@ -151,21 +151,107 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
     }
   };
 
+  // 键盘快捷键支持
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!rendition) return;
+      
+      switch (e.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+        case " ": // Space
+          e.preventDefault();
+          rendition.next();
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          e.preventDefault();
+          rendition.prev();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [rendition]);
+
   return (
     <div 
       className="h-screen w-full flex flex-col relative overflow-hidden transition-colors duration-300" 
       style={{ backgroundColor: currentTheme.bg }}
     >
       <div 
-        className="h-14 flex items-center justify-between px-4 border-b"
+        className="h-14 flex items-center justify-between px-4 border-b relative z-30"
         style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}
       >
-        <button onClick={() => navigate(-1)} style={{ color: currentTheme.fg }}><ArrowLeft /></button>
-        <h1 className="font-serif font-bold truncate px-4" style={{ color: currentTheme.fg }}>{bookTitle}</h1>
-        <button onClick={() => setShowSettings(!showSettings)} style={{ color: currentTheme.fg }}><Settings /></button>
+        <button onClick={() => navigate(-1)} style={{ color: currentTheme.fg }} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="font-serif font-bold truncate px-4 flex-1 text-center text-sm md:text-base" style={{ color: currentTheme.fg }}>{bookTitle}</h1>
+        <div className="relative">
+          <button 
+            id="reader-settings-btn"
+            onClick={() => setShowSettings(!showSettings)} 
+            style={{ color: currentTheme.fg }}
+            className={`p-2 rounded-full transition-all ${showSettings ? 'bg-black/10' : 'hover:bg-black/5'}`}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettings && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 10, x: 0 }} 
+                animate={{ opacity: 1, scale: 1, y: 0, x: 0 }} 
+                exit={{ opacity: 0, scale: 0.95, y: 10, x: 0 }} 
+                className="absolute right-0 mt-3 w-72 md:w-80 rounded-2xl shadow-2xl border overflow-hidden z-50 p-5" 
+                style={{ 
+                  backgroundColor: currentTheme.bg, 
+                  color: currentTheme.fg,
+                  borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                }}
+              >
+                <div className="flex justify-between mb-4 items-center">
+                  <h3 className="font-bold text-xs opacity-50 tracking-widest uppercase">阅读设置</h3>
+                  <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-black/5 rounded-full transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                
+                <div className="mb-6">
+                  <h4 className="text-[10px] uppercase tracking-[0.2em] opacity-40 mb-3 ml-1">字号调节</h4>
+                  <div className="flex gap-2 items-center bg-black/5 p-1 rounded-xl">
+                    <button onClick={() => setFontSize(Math.max(70, fontSize - 10))} className="flex-1 py-2 flex justify-center hover:bg-black/10 rounded-lg transition-colors"><Minus className="w-4 h-4" /></button>
+                    <span className="w-16 text-center font-bold text-xs">{fontSize}%</span>
+                    <button onClick={() => setFontSize(Math.min(200, fontSize + 10))} className="flex-1 py-2 flex justify-center hover:bg-black/10 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-[10px] uppercase tracking-[0.2em] opacity-40 mb-3 ml-1">配色方案</h4>
+                  <div className="grid grid-cols-4 gap-3">
+                    {Object.entries(THEMES).map(([key, value]) => (
+                      <button 
+                        key={key} 
+                        onClick={() => setTheme(key as any)} 
+                        className={`flex flex-col items-center gap-1.5 transition-all ${theme === key ? 'scale-105' : 'opacity-40 hover:opacity-100'}`}
+                      >
+                        <div 
+                          className={`w-8 h-8 rounded-full border-2 ${theme === key ? 'border-[var(--primary-color)] shadow-inner' : 'border-transparent'}`} 
+                          style={{ backgroundColor: value.bg }} 
+                        />
+                        <span className="text-[9px] font-bold">{value.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      <div className="flex-1 relative" key={`${theme}-${fontSize}`}>
+      <div className="flex-1 relative z-10" key={`${theme}-${fontSize}`}>
         {loading && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-inherit gap-3">
             <Loader2 className="w-8 h-8 animate-spin opacity-50" />
@@ -188,59 +274,12 @@ export default function EpubReader({ bookUrl, bookTitle }: EpubReaderProps) {
         )}
       </div>
 
-      <AnimatePresence>
-        {showSettings && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
-            <motion.div 
-              initial={{ y: "100%" }} 
-              animate={{ y: 0 }} 
-              exit={{ y: "100%" }} 
-              className="absolute bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:bottom-6 md:w-[450px] md:rounded-3xl z-50 p-6 rounded-t-2xl shadow-2xl border-t md:border transition-all duration-300" 
-              style={{ 
-                backgroundColor: currentTheme.bg, 
-                color: currentTheme.fg,
-                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
-              }}
-            >
-              <div className="flex justify-between mb-5 items-center">
-                <h3 className="font-bold text-sm opacity-80 tracking-wide">阅读设置</h3>
-                <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-black/5 rounded-full transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="mb-6">
-                <h4 className="text-[10px] uppercase tracking-widest opacity-40 mb-2.5 ml-1">字号调节</h4>
-                <div className="flex gap-4 items-center bg-black/5 p-1.5 rounded-xl">
-                  <button onClick={() => setFontSize(Math.max(70, fontSize - 10))} className="p-2 hover:bg-black/10 rounded-lg transition-colors"><Minus className="w-4 h-4" /></button>
-                  <span className="flex-1 text-center font-bold text-sm">{fontSize}%</span>
-                  <button onClick={() => setFontSize(Math.min(200, fontSize + 10))} className="p-2 hover:bg-black/10 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-[10px] uppercase tracking-widest opacity-40 mb-2.5 ml-1">配色方案</h4>
-                <div className="grid grid-cols-4 gap-4">
-                  {Object.entries(THEMES).map(([key, value]) => (
-                    <button 
-                      key={key} 
-                      onClick={() => setTheme(key as any)} 
-                      className={`flex flex-col items-center gap-1.5 transition-all ${theme === key ? 'scale-105' : 'opacity-50 hover:opacity-100'}`}
-                    >
-                      <div 
-                        className={`w-9 h-9 rounded-full border-2 ${theme === key ? 'border-[var(--primary-color)] shadow-sm' : 'border-transparent'}`} 
-                        style={{ backgroundColor: value.bg }} 
-                      />
-                      <span className="text-[9px] font-medium">{value.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {showSettings && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowSettings(false)} 
+        />
+      )}
     </div>
   );
 }
